@@ -256,20 +256,31 @@ tbody tr:hover {
   background: #152231;
 }
 
-.clickable-row {
-  cursor: pointer;
-}
-
-.clickable-row:focus-visible {
-  outline: 2px solid #58c7f3;
-  outline-offset: -2px;
-  background: #152231;
-}
-
 .session-cell {
   display: grid;
   gap: 3px;
   min-width: 0;
+}
+
+.session-action {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-action:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #58c7f3;
+  outline-offset: 2px;
+}
+
+.session-action:hover span,
+.session-action:focus-visible span {
+  color: #58c7f3;
 }
 
 .session-cell span,

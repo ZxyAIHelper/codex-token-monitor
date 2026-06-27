@@ -69,24 +69,17 @@ export function SessionTable({ sessions, onOpenSession }: SessionTableProps) {
             </thead>
             <tbody>
               {orderedSessions.map((session) => (
-                <tr
-                  key={session.session_id}
-                  className="clickable-row"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onOpenSession(session)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onOpenSession(session);
-                    }
-                  }}
-                >
+                <tr key={session.session_id}>
                   <td>
-                    <div className="session-cell">
+                    <button
+                      type="button"
+                      className="session-action session-cell"
+                      aria-label={`Open session ${session.session_id}`}
+                      onClick={() => onOpenSession(session)}
+                    >
                       <span title={session.session_id}>{formatSessionId(session.session_id)}</span>
                       <small title={session.path}>{session.path}</small>
-                    </div>
+                    </button>
                   </td>
                   <td>{formatNumber(session.total_tokens)}</td>
                   <td>{formatNumber(session.input_tokens)}</td>
