@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
-import { dashboardSummary, hourlyTotals, listSessions } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { dashboardSummary, getSessionTurns, hourlyTotals, listSessions } from "./api";
 import { AlertList } from "./components/AlertList";
 import { HourlyTrend } from "./components/HourlyTrend";
+import { SessionDetail } from "./components/SessionDetail";
 import { SessionTable } from "./components/SessionTable";
 import { SummaryCards } from "./components/SummaryCards";
-import type { DashboardSummary, SessionSummary, TimeBucket } from "./types";
+import type { DashboardSummary, SessionSummary, TimeBucket, TurnDetail } from "./types";
 
 const REFRESH_INTERVAL_MS = 5_000;
 
@@ -15,6 +16,11 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedSession, setSelectedSession] = useState<SessionSummary | null>(null);
+  const [turns, setTurns] = useState<TurnDetail[]>([]);
+  const [turnsError, setTurnsError] = useState<string | null>(null);
+  const [areTurnsLoading, setAreTurnsLoading] = useState(false);
+  const detailRequestId = useRef(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -75,6 +81,56 @@ function App() {
     };
   }, []);
 
+  const handleOpenSession = useCallback(async (session: SessionSummary) => {
+    const requestId = detailRequestId.current + 1;
+    detailRequestId.current = requestId;
+
+    setSelectedSession(session);
+    setTurns([]);
+    setTurnsError(null);
+    setAreTurnsLoading(true);
+
+    try {
+      const nextTurns = await getSessionTurns(session.session_id);
+      if (detailRequestId.current !== requestId) {
+        return;
+      }
+      setTurns(nextTurns);
+      setTurnsError(null);
+    } catch (err) {
+      if (detailRequestId.current !== requestId) {
+        return;
+      }
+      setTurnsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (detailRequestId.current === requestId) {
+        setAreTurnsLoading(false);
+      }
+    }
+  }, []);
+
+  const handleBackToDashboard = useCallback(() => {
+    detailRequestId.current += 1;
+    setSelectedSession(null);
+    setTurns([]);
+    setTurnsError(null);
+    setAreTurnsLoading(false);
+  }, []);
+
+  if (selectedSession) {
+    return (
+      <main className="app-shell">
+        <SessionDetail
+          session={selectedSession}
+          turns={turns}
+          isLoading={areTurnsLoading}
+          error={turnsError}
+          onBack={handleBackToDashboard}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <header className="app-header">
@@ -96,7 +152,7 @@ function App() {
       <HourlyTrend buckets={hourlyBuckets} />
 
       <section className="lower-grid">
-        <SessionTable sessions={sessions} />
+        <SessionTable sessions={sessions} onOpenSession={handleOpenSession} />
         <AlertList />
       </section>
     </main>

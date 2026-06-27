@@ -2,6 +2,7 @@ import type { SessionSummary } from "../types";
 
 interface SessionTableProps {
   sessions: SessionSummary[];
+  onOpenSession: (session: SessionSummary) => void;
 }
 
 const compactNumber = new Intl.NumberFormat("en", {
@@ -37,7 +38,7 @@ function formatLastSeen(timestamp: string): string {
   });
 }
 
-export function SessionTable({ sessions }: SessionTableProps) {
+export function SessionTable({ sessions, onOpenSession }: SessionTableProps) {
   const orderedSessions = [...sessions].sort((a, b) => b.total_tokens - a.total_tokens);
 
   return (
@@ -68,7 +69,19 @@ export function SessionTable({ sessions }: SessionTableProps) {
             </thead>
             <tbody>
               {orderedSessions.map((session) => (
-                <tr key={session.session_id}>
+                <tr
+                  key={session.session_id}
+                  className="clickable-row"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => onOpenSession(session)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onOpenSession(session);
+                    }
+                  }}
+                >
                   <td>
                     <div className="session-cell">
                       <span title={session.session_id}>{formatSessionId(session.session_id)}</span>
