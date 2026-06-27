@@ -57,6 +57,15 @@ pub struct DashboardSummary {
     pub output_tokens: i64,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+pub struct SessionFileOffset {
+    pub path: String,
+    pub session_id: String,
+    pub file_size: i64,
+    pub modified_at: String,
+    pub parsed_offset: i64,
+}
+
 impl UsageStore {
     pub async fn memory() -> Result<Self, sqlx::Error> {
         let pool = SqlitePoolOptions::new()
@@ -346,6 +355,51 @@ impl UsageStore {
         .await?;
 
         tx.commit().await
+    }
+
+    pub async fn session_file_offset(
+        &self,
+        path: &str,
+    ) -> Result<Option<SessionFileOffset>, sqlx::Error> {
+        sqlx::query_as::<_, SessionFileOffset>(
+            r#"
+            select path, session_id, file_size, modified_at, parsed_offset
+            from session_files
+            where path = ?1
+            "#,
+        )
+        .bind(path)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn set_session_file_offset(
+        &self,
+        path: &str,
+        session_id: &str,
+        file_size: u64,
+        modified_at: &str,
+        parsed_offset: u64,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            insert into session_files (path, session_id, file_size, modified_at, parsed_offset)
+            values (?1, ?2, ?3, ?4, ?5)
+            on conflict(path) do update set
+              session_id = excluded.session_id,
+              file_size = excluded.file_size,
+              modified_at = excluded.modified_at,
+              parsed_offset = excluded.parsed_offset
+            "#,
+        )
+        .bind(path)
+        .bind(session_id)
+        .bind(file_size as i64)
+        .bind(modified_at)
+        .bind(parsed_offset as i64)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
     }
 
     async fn rebuild_aggregates_from_token_events(&self) -> Result<(), sqlx::Error> {

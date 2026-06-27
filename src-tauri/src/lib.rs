@@ -4,6 +4,8 @@ pub mod scanner;
 pub mod usage_store;
 pub mod watcher;
 
+use std::{error::Error, path::PathBuf};
+
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
@@ -108,9 +110,16 @@ fn setup_tray(app: &tauri::App) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let store = tauri::async_runtime::block_on(async {
-        let store = UsageStore::memory().await?;
+        let store = if let Some(path) = default_usage_store_path() {
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            UsageStore::open(&path.to_string_lossy()).await?
+        } else {
+            UsageStore::memory().await?
+        };
         store.init().await?;
-        Ok::<UsageStore, sqlx::Error>(store)
+        Ok::<UsageStore, Box<dyn Error>>(store)
     })
     .expect("failed to initialize usage store");
 
@@ -138,6 +147,10 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
+}
+
+fn default_usage_store_path() -> Option<PathBuf> {
+    dirs::data_local_dir().map(|dir| dir.join("codex-token-monitor").join("usage.sqlite3"))
 }
 
 #[cfg(test)]

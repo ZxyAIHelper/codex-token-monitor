@@ -19,12 +19,16 @@ pub fn scan_file(store: &UsageStore, path: &Path, offset: u64) -> Result<u64, St
         .map_err(|err| err.to_string())?;
 
     let mut line = String::new();
+    let mut current_offset = offset;
     loop {
         line.clear();
         let bytes_read = reader.read_line(&mut line).map_err(|err| err.to_string())?;
         if bytes_read == 0 {
             break;
         }
+        let line_start_offset = current_offset;
+        current_offset += bytes_read as u64;
+        let complete_line = line.ends_with('\n');
 
         match parse_jsonl_line(line.trim_end_matches(['\r', '\n'])) {
             Ok(CodexEvent::TokenCount(event)) => {
@@ -36,13 +40,14 @@ pub fn scan_file(store: &UsageStore, path: &Path, offset: u64) -> Result<u64, St
                 .map_err(|err| err.to_string())?;
             }
             Ok(CodexEvent::ToolOutput(_) | CodexEvent::Ignored) => {}
-            // Corrupt or partially-written JSONL rows are skipped deterministically.
-            // The returned offset advances past them so the scanner does not retry forever.
-            Err(_) => {}
+            // Complete corrupt rows are skipped. An invalid unterminated final row
+            // may still be in progress, so leave the offset at the row start.
+            Err(_) if complete_line => {}
+            Err(_) => return Ok(line_start_offset),
         }
     }
 
-    reader.stream_position().map_err(|err| err.to_string())
+    Ok(current_offset)
 }
 
 pub fn default_codex_sessions_dir() -> Option<PathBuf> {

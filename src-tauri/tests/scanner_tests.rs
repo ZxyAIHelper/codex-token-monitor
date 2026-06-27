@@ -177,6 +177,65 @@ fn scan_file_skips_invalid_json_and_continues() {
     cleanup_temp_rollout(&path);
 }
 
+#[test]
+fn scan_file_retries_partial_trailing_invalid_json() {
+    let store = tauri::async_runtime::block_on(async {
+        let store = UsageStore::memory().await.unwrap();
+        store.init().await.unwrap();
+        store
+    });
+    let path = temp_rollout_path("scan-partial-json");
+    let mut file = std::fs::File::create(&path).unwrap();
+    writeln!(
+        file,
+        r#"{{"timestamp":"2026-06-27T12:00:00Z","type":"event_msg","payload":{{"type":"token_count","info":{{"last_token_usage":{{"input_tokens":10,"cached_input_tokens":0,"output_tokens":2,"reasoning_output_tokens":0,"total_tokens":12}}}}}}}}"#
+    )
+    .unwrap();
+    let complete_offset = file.metadata().unwrap().len();
+    write!(file, r#"{{"timestamp":"2026-06-27T12:00:01Z""#).unwrap();
+
+    let offset = scan_file(&store, &path, 0).unwrap();
+
+    assert_eq!(offset, complete_offset);
+    tauri::async_runtime::block_on(async {
+        let sessions = store.sessions().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].total_tokens, 12);
+    });
+
+    cleanup_temp_rollout(&path);
+}
+
+#[test]
+fn usage_store_persists_session_file_offsets() {
+    tauri::async_runtime::block_on(async {
+        let store = UsageStore::memory().await.unwrap();
+        store.init().await.unwrap();
+
+        store
+            .set_session_file_offset(
+                "C:/tmp/session-a.jsonl",
+                "session-a",
+                2048,
+                "2026-06-27T12:00:00Z",
+                1024,
+            )
+            .await
+            .unwrap();
+
+        let offset = store
+            .session_file_offset("C:/tmp/session-a.jsonl")
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(offset.session_id, "session-a");
+        assert_eq!(offset.file_size, 2048);
+        assert_eq!(offset.modified_at, "2026-06-27T12:00:00Z");
+        assert_eq!(offset.parsed_offset, 1024);
+    });
+}
+
 fn temp_rollout_path(label: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!(
         "codex-token-monitor-{label}-{}",
