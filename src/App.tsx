@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { dashboardSummary, hourlyTotals, listSessions } from "./api";
 import { AlertList } from "./components/AlertList";
 import { HourlyTrend } from "./components/HourlyTrend";
@@ -16,34 +16,64 @@ function App() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadDashboard = useCallback(async () => {
-    try {
-      const [nextSummary, nextSessions, nextHourlyBuckets] = await Promise.all([
-        dashboardSummary(),
-        listSessions(),
-        hourlyTotals(),
-      ]);
-
-      setSummary(nextSummary);
-      setSessions(nextSessions);
-      setHourlyBuckets(nextHourlyBuckets);
-      setUpdatedAt(new Date());
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
+    let isMounted = true;
+    let isRequestInFlight = false;
+    let latestRequestId = 0;
+
+    const loadDashboard = async () => {
+      if (isRequestInFlight) {
+        return;
+      }
+
+      isRequestInFlight = true;
+      const requestId = latestRequestId + 1;
+      latestRequestId = requestId;
+
+      try {
+        const [nextSummary, nextSessions, nextHourlyBuckets] = await Promise.all([
+          dashboardSummary(),
+          listSessions(),
+          hourlyTotals(),
+        ]);
+
+        if (!isMounted || requestId !== latestRequestId) {
+          return;
+        }
+
+        setSummary(nextSummary);
+        setSessions(nextSessions);
+        setHourlyBuckets(nextHourlyBuckets);
+        setUpdatedAt(new Date());
+        setError(null);
+      } catch (err) {
+        if (!isMounted || requestId !== latestRequestId) {
+          return;
+        }
+
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (isMounted && requestId === latestRequestId) {
+          setIsLoading(false);
+        }
+
+        if (requestId === latestRequestId) {
+          isRequestInFlight = false;
+        }
+      }
+    };
+
     void loadDashboard();
     const refreshId = window.setInterval(() => {
       void loadDashboard();
     }, REFRESH_INTERVAL_MS);
 
-    return () => window.clearInterval(refreshId);
-  }, [loadDashboard]);
+    return () => {
+      isMounted = false;
+      latestRequestId += 1;
+      window.clearInterval(refreshId);
+    };
+  }, []);
 
   return (
     <main className="app-shell">

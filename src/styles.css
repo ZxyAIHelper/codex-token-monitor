@@ -330,7 +330,8 @@ tbody tr:hover {
   }
 
   .trend-chart {
-    grid-template-columns: repeat(12, minmax(16px, 1fr));
+    grid-template-columns: repeat(24, minmax(24px, 1fr));
     overflow-x: auto;
+    padding-bottom: 6px;
   }
 }
