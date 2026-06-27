@@ -39,3 +39,70 @@ async fn store_tests_stores_session_and_hourly_totals() {
     assert_eq!(hours[0].output_tokens, 7);
     assert_eq!(hours[0].session_count, 1);
 }
+
+#[tokio::test]
+async fn store_tests_rejects_invalid_timestamp_without_writing_aggregates() {
+    let store = UsageStore::memory().await.unwrap();
+    store.init().await.unwrap();
+
+    let err = store
+        .record_token_count(
+            "session-a",
+            "C:/tmp/session.jsonl",
+            token_event("not-a-timestamp", 100),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(err.to_string().contains("invalid token timestamp"));
+    assert!(store.sessions().await.unwrap().is_empty());
+    assert!(store.hourly_totals().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn store_tests_counts_distinct_sessions_per_hour() {
+    let store = UsageStore::memory().await.unwrap();
+    store.init().await.unwrap();
+
+    store
+        .record_token_count(
+            "session-a",
+            "C:/tmp/session-a.jsonl",
+            token_event("2026-06-27T12:10:00Z", 100),
+        )
+        .await
+        .unwrap();
+    store
+        .record_token_count(
+            "session-a",
+            "C:/tmp/session-a.jsonl",
+            token_event("2026-06-27T12:20:00Z", 50),
+        )
+        .await
+        .unwrap();
+    store
+        .record_token_count(
+            "session-b",
+            "C:/tmp/session-b.jsonl",
+            token_event("2026-06-27T12:30:00Z", 25),
+        )
+        .await
+        .unwrap();
+
+    let hours = store.hourly_totals().await.unwrap();
+    assert_eq!(hours.len(), 1);
+    assert_eq!(hours[0].bucket, "2026-06-27T12:00:00Z");
+    assert_eq!(hours[0].total_tokens, 175);
+    assert_eq!(hours[0].session_count, 2);
+}
+
+fn token_event(timestamp: &str, total_tokens: i64) -> TokenCountEvent {
+    TokenCountEvent {
+        timestamp: timestamp.to_string(),
+        input_tokens: total_tokens,
+        cached_input_tokens: 0,
+        output_tokens: 0,
+        reasoning_output_tokens: 0,
+        total_tokens,
+    }
+}

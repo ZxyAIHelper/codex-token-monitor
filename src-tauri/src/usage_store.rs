@@ -93,6 +93,18 @@ impl UsageStore {
 
         sqlx::query(
             r#"
+            create table if not exists hourly_sessions (
+              bucket text not null,
+              session_id text not null,
+              primary key (bucket, session_id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
             create table if not exists hourly_buckets (
               bucket text primary key,
               total_tokens integer not null default 0,
@@ -114,7 +126,7 @@ impl UsageStore {
         path: &str,
         event: TokenCountEvent,
     ) -> Result<(), sqlx::Error> {
-        let bucket = hour_bucket(&event.timestamp);
+        let bucket = hour_bucket(&event.timestamp)?;
         let mut tx = self.pool.begin().await?;
 
         sqlx::query(
@@ -145,12 +157,25 @@ impl UsageStore {
         .execute(&mut *tx)
         .await?;
 
+        let session_delta = sqlx::query(
+            r#"
+            insert into hourly_sessions (bucket, session_id)
+            values (?1, ?2)
+            on conflict(bucket, session_id) do nothing
+            "#,
+        )
+        .bind(&bucket)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected() as i64;
+
         sqlx::query(
             r#"
             insert into hourly_buckets (
               bucket, total_tokens, input_tokens, output_tokens, session_count
             )
-            values (?1, ?2, ?3, ?4, 1)
+            values (?1, ?2, ?3, ?4, ?5)
             on conflict(bucket) do update set
               total_tokens = hourly_buckets.total_tokens + excluded.total_tokens,
               input_tokens = hourly_buckets.input_tokens + excluded.input_tokens,
@@ -162,6 +187,7 @@ impl UsageStore {
         .bind(event.total_tokens)
         .bind(event.input_tokens)
         .bind(event.output_tokens)
+        .bind(session_delta)
         .execute(&mut *tx)
         .await?;
 
@@ -195,15 +221,15 @@ impl UsageStore {
     }
 }
 
-fn hour_bucket(timestamp: &str) -> String {
+fn hour_bucket(timestamp: &str) -> Result<String, sqlx::Error> {
     let parsed = DateTime::parse_from_rfc3339(timestamp)
         .map(|dt| dt.with_timezone(&Utc))
-        .unwrap_or_else(|_| Utc::now());
+        .map_err(|err| sqlx::Error::Protocol(format!("invalid token timestamp: {err}")))?;
 
-    parsed
+    Ok(parsed
         .with_minute(0)
         .and_then(|dt| dt.with_second(0))
         .and_then(|dt| dt.with_nanosecond(0))
         .expect("zeroed hour timestamp should be valid")
-        .to_rfc3339_opts(SecondsFormat::Secs, true)
+        .to_rfc3339_opts(SecondsFormat::Secs, true))
 }
