@@ -150,6 +150,35 @@ fn scan_file_records_token_counts_and_returns_offsets() {
 }
 
 #[test]
+fn scan_file_records_tool_outputs() {
+    let store = tauri::async_runtime::block_on(async {
+        let store = UsageStore::memory().await.unwrap();
+        store.init().await.unwrap();
+        store
+    });
+    let path = temp_rollout_path("scan-tool-output");
+    let mut file = std::fs::File::create(&path).unwrap();
+    writeln!(
+        file,
+        r#"{{"timestamp":"2026-06-27T12:00:00Z","type":"response_item","payload":{{"type":"function_call_output","call_id":"call_1","output":"{}"}}}}"#,
+        "x".repeat(128)
+    )
+    .unwrap();
+
+    let offset = scan_file(&store, &path, 0).unwrap();
+
+    assert_eq!(offset, file.metadata().unwrap().len());
+    tauri::async_runtime::block_on(async {
+        let sessions = store.sessions().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].tool_calls, 1);
+        assert_eq!(sessions[0].tool_output_bytes, 128);
+    });
+
+    cleanup_temp_rollout(&path);
+}
+
+#[test]
 fn scan_file_skips_invalid_json_and_continues() {
     let store = tauri::async_runtime::block_on(async {
         let store = UsageStore::memory().await.unwrap();

@@ -7,7 +7,14 @@ use sqlx::{
     SqlitePool,
 };
 
-use crate::codex_log::TokenCountEvent;
+use crate::{
+    alerts::{
+        token_level, AlertItem, AlertKind, HOURLY_CRITICAL_TOKENS, HOURLY_WARNING_TOKENS,
+        SESSION_CRITICAL_TOKENS, SESSION_WARNING_TOKENS, TOOL_OUTPUT_CRITICAL_BYTES,
+        TOOL_OUTPUT_WARNING_BYTES,
+    },
+    codex_log::{TokenCountEvent, ToolOutputEvent},
+};
 
 #[derive(Clone)]
 pub struct UsageStore {
@@ -166,6 +173,42 @@ impl UsageStore {
 
         sqlx::query(
             r#"
+            create table if not exists tool_events (
+              id integer primary key autoincrement,
+              session_id text not null,
+              path text not null,
+              timestamp text not null,
+              output_bytes integer not null default 0
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            delete from tool_events
+            where id not in (
+              select min(id)
+              from tool_events
+              group by session_id, path, timestamp, output_bytes
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            create unique index if not exists idx_tool_events_unique_event
+            on tool_events (session_id, path, timestamp, output_bytes)
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
             create table if not exists hourly_sessions (
               bucket text not null,
               session_id text not null,
@@ -272,7 +315,10 @@ impl UsageStore {
               cached_input_tokens = sessions.cached_input_tokens + excluded.cached_input_tokens,
               output_tokens = sessions.output_tokens + excluded.output_tokens,
               reasoning_output_tokens = sessions.reasoning_output_tokens + excluded.reasoning_output_tokens,
-              last_seen_at = excluded.last_seen_at
+              last_seen_at = case
+                when sessions.last_seen_at > excluded.last_seen_at then sessions.last_seen_at
+                else excluded.last_seen_at
+              end
             "#,
         )
         .bind(session_id)
@@ -357,6 +403,60 @@ impl UsageStore {
         tx.commit().await
     }
 
+    pub async fn record_tool_output(
+        &self,
+        session_id: &str,
+        path: &str,
+        event: ToolOutputEvent,
+    ) -> Result<(), sqlx::Error> {
+        let event_timestamp = parse_timestamp_utc(&event.timestamp)?;
+        let event_timestamp = event_timestamp.to_rfc3339_opts(SecondsFormat::Secs, true);
+        let mut tx = self.pool.begin().await?;
+
+        let tool_event_insert = sqlx::query(
+            r#"
+            insert into tool_events (session_id, path, timestamp, output_bytes)
+            values (?1, ?2, ?3, ?4)
+            on conflict do nothing
+            "#,
+        )
+        .bind(session_id)
+        .bind(path)
+        .bind(&event_timestamp)
+        .bind(event.output_bytes)
+        .execute(&mut *tx)
+        .await?;
+        if tool_event_insert.rows_affected() == 0 {
+            tx.commit().await?;
+            return Ok(());
+        }
+
+        sqlx::query(
+            r#"
+            insert into sessions (
+              session_id, path, tool_calls, tool_output_bytes, last_seen_at
+            )
+            values (?1, ?2, 1, ?3, ?4)
+            on conflict(session_id) do update set
+              path = excluded.path,
+              tool_calls = sessions.tool_calls + excluded.tool_calls,
+              tool_output_bytes = sessions.tool_output_bytes + excluded.tool_output_bytes,
+              last_seen_at = case
+                when sessions.last_seen_at > excluded.last_seen_at then sessions.last_seen_at
+                else excluded.last_seen_at
+              end
+            "#,
+        )
+        .bind(session_id)
+        .bind(path)
+        .bind(event.output_bytes)
+        .bind(&event_timestamp)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await
+    }
+
     pub async fn session_file_offset(
         &self,
         path: &str,
@@ -421,8 +521,6 @@ impl UsageStore {
             .execute(&mut *tx)
             .await?;
 
-        // Tool counters are not represented in token_events, so rebuilds reset
-        // them to zero instead of preserving potentially stale aggregate rows.
         sqlx::query(
             r#"
             insert into sessions (
@@ -431,23 +529,40 @@ impl UsageStore {
               tool_output_bytes, last_seen_at
             )
             select
-              totals.session_id,
+              all_sessions.session_id,
               (
                 select latest.path
-                from token_events latest
-                where latest.session_id = totals.session_id
+                from (
+                  select session_id, path, timestamp, id from token_events
+                  union all
+                  select session_id, path, timestamp, id from tool_events
+                ) latest
+                where latest.session_id = all_sessions.session_id
                 order by latest.timestamp desc, latest.id desc
                 limit 1
               ),
-              totals.total_tokens,
-              totals.input_tokens,
-              totals.cached_input_tokens,
-              totals.output_tokens,
-              totals.reasoning_output_tokens,
-              0,
-              0,
-              totals.last_seen_at
+              coalesce(token_totals.total_tokens, 0),
+              coalesce(token_totals.input_tokens, 0),
+              coalesce(token_totals.cached_input_tokens, 0),
+              coalesce(token_totals.output_tokens, 0),
+              coalesce(token_totals.reasoning_output_tokens, 0),
+              coalesce(tool_totals.tool_calls, 0),
+              coalesce(tool_totals.tool_output_bytes, 0),
+              (
+                select max(latest.timestamp)
+                from (
+                  select session_id, timestamp from token_events
+                  union all
+                  select session_id, timestamp from tool_events
+                ) latest
+                where latest.session_id = all_sessions.session_id
+              )
             from (
+              select session_id from token_events
+              union
+              select session_id from tool_events
+            ) all_sessions
+            left join (
               select
                 session_id,
                 coalesce(sum(total_tokens), 0) as total_tokens,
@@ -458,7 +573,16 @@ impl UsageStore {
                 max(timestamp) as last_seen_at
               from token_events
               group by session_id
-            ) totals
+            ) token_totals on token_totals.session_id = all_sessions.session_id
+            left join (
+              select
+                session_id,
+                count(*) as tool_calls,
+                coalesce(sum(output_bytes), 0) as tool_output_bytes,
+                max(timestamp) as last_seen_at
+              from tool_events
+              group by session_id
+            ) tool_totals on tool_totals.session_id = all_sessions.session_id
             "#,
         )
         .execute(&mut *tx)
@@ -636,6 +760,100 @@ impl UsageStore {
             input_tokens,
             output_tokens,
         })
+    }
+
+    pub async fn alerts(&self) -> Result<Vec<AlertItem>, sqlx::Error> {
+        let mut alerts = Vec::new();
+
+        let session_rows = sqlx::query_as::<_, (String, i64, String)>(
+            r#"
+            select session_id, total_tokens, last_seen_at
+            from sessions
+            where total_tokens > ?1
+            "#,
+        )
+        .bind(SESSION_WARNING_TOKENS)
+        .fetch_all(&self.pool)
+        .await?;
+        for (session_id, total_tokens, timestamp) in session_rows {
+            if let Some(level) = token_level(
+                total_tokens,
+                SESSION_WARNING_TOKENS,
+                SESSION_CRITICAL_TOKENS,
+            ) {
+                alerts.push(AlertItem {
+                    level,
+                    kind: AlertKind::HighSessionUsage,
+                    message: format!(
+                        "Session {session_id} used {total_tokens} tokens, exceeding the session threshold"
+                    ),
+                    timestamp,
+                    session_id: Some(session_id),
+                });
+            }
+        }
+
+        let hourly_rows = sqlx::query_as::<_, (String, i64)>(
+            r#"
+            select bucket, total_tokens
+            from hourly_buckets
+            where total_tokens > ?1
+            "#,
+        )
+        .bind(HOURLY_WARNING_TOKENS)
+        .fetch_all(&self.pool)
+        .await?;
+        for (timestamp, total_tokens) in hourly_rows {
+            if let Some(level) =
+                token_level(total_tokens, HOURLY_WARNING_TOKENS, HOURLY_CRITICAL_TOKENS)
+            {
+                alerts.push(AlertItem {
+                    level,
+                    kind: AlertKind::HighHourlyUsage,
+                    message: format!(
+                        "Hour {timestamp} used {total_tokens} tokens, exceeding the hourly threshold"
+                    ),
+                    timestamp,
+                    session_id: None,
+                });
+            }
+        }
+
+        let tool_rows = sqlx::query_as::<_, (String, String, i64)>(
+            r#"
+            select session_id, timestamp, output_bytes
+            from tool_events
+            where output_bytes > ?1
+            "#,
+        )
+        .bind(TOOL_OUTPUT_WARNING_BYTES)
+        .fetch_all(&self.pool)
+        .await?;
+        for (session_id, timestamp, output_bytes) in tool_rows {
+            if let Some(level) = token_level(
+                output_bytes,
+                TOOL_OUTPUT_WARNING_BYTES,
+                TOOL_OUTPUT_CRITICAL_BYTES,
+            ) {
+                alerts.push(AlertItem {
+                    level,
+                    kind: AlertKind::LargeToolOutput,
+                    message: format!(
+                        "Tool output in session {session_id} was {output_bytes} bytes, exceeding the tool output threshold"
+                    ),
+                    timestamp,
+                    session_id: Some(session_id),
+                });
+            }
+        }
+
+        alerts.sort_by(|a, b| {
+            b.timestamp
+                .cmp(&a.timestamp)
+                .then_with(|| b.level.cmp(&a.level))
+                .then_with(|| a.message.cmp(&b.message))
+        });
+        Ok(alerts)
     }
 }
 

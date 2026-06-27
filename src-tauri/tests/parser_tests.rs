@@ -34,6 +34,22 @@ fn parser_tests_parses_function_call_output_size_as_bytes() {
 }
 
 #[test]
+fn parser_tests_ignores_token_count_with_null_info() {
+    let line = r#"{"timestamp":"2026-06-27T12:00:00Z","type":"event_msg","payload":{"type":"token_count","info":null}}"#;
+    let event = parse_jsonl_line(line).unwrap();
+
+    assert!(matches!(event, CodexEvent::Ignored));
+}
+
+#[test]
+fn parser_tests_ignores_token_count_missing_last_usage() {
+    let line = r#"{"timestamp":"2026-06-27T12:00:00Z","type":"event_msg","payload":{"type":"token_count","info":{}}}"#;
+    let event = parse_jsonl_line(line).unwrap();
+
+    assert!(matches!(event, CodexEvent::Ignored));
+}
+
+#[test]
 fn parser_tests_ignores_unrelated_json_lines() {
     let line = r#"{"timestamp":"2026-06-27T12:00:02Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[]}}"#;
     let event = parse_jsonl_line(line).unwrap();

@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
-use codex_token_monitor_lib::codex_log::TokenCountEvent;
+use codex_token_monitor_lib::alerts::{AlertKind, AlertLevel};
+use codex_token_monitor_lib::codex_log::{TokenCountEvent, ToolOutputEvent};
 use codex_token_monitor_lib::usage_store::UsageStore;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
@@ -99,6 +100,83 @@ async fn store_tests_duplicate_token_events_are_idempotent() {
 }
 
 #[tokio::test]
+async fn store_tests_records_tool_output_idempotently() {
+    let store = UsageStore::memory().await.unwrap();
+    store.init().await.unwrap();
+    let event = ToolOutputEvent {
+        timestamp: "2026-06-27T12:34:56Z".to_string(),
+        output_bytes: 2048,
+    };
+
+    store
+        .record_tool_output("session-a", "C:/tmp/session.jsonl", event.clone())
+        .await
+        .unwrap();
+    store
+        .record_tool_output("session-a", "C:/tmp/session.jsonl", event)
+        .await
+        .unwrap();
+
+    let sessions = store.sessions().await.unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].session_id, "session-a");
+    assert_eq!(sessions[0].total_tokens, 0);
+    assert_eq!(sessions[0].tool_calls, 1);
+    assert_eq!(sessions[0].tool_output_bytes, 2048);
+    assert_eq!(sessions[0].last_seen_at, "2026-06-27T12:34:56Z");
+}
+
+#[tokio::test]
+async fn store_tests_alerts_report_threshold_breaches() {
+    let store = UsageStore::memory().await.unwrap();
+    store.init().await.unwrap();
+
+    store
+        .record_token_count(
+            "session-large",
+            "C:/tmp/session-large.jsonl",
+            token_event("2026-06-27T12:10:00Z", 10_000_001),
+        )
+        .await
+        .unwrap();
+    store
+        .record_token_count(
+            "session-hour",
+            "C:/tmp/session-hour.jsonl",
+            token_event("2026-06-27T12:20:00Z", 1_000_001),
+        )
+        .await
+        .unwrap();
+    store
+        .record_tool_output(
+            "session-tool",
+            "C:/tmp/session-tool.jsonl",
+            ToolOutputEvent {
+                timestamp: "2026-06-27T12:30:00Z".to_string(),
+                output_bytes: 50 * 1024 + 1,
+            },
+        )
+        .await
+        .unwrap();
+
+    let alerts = store.alerts().await.unwrap();
+
+    assert!(alerts.iter().any(|alert| {
+        alert.kind == AlertKind::HighSessionUsage
+            && alert.level == AlertLevel::Critical
+            && alert.session_id.as_deref() == Some("session-large")
+    }));
+    assert!(alerts.iter().any(|alert| {
+        alert.kind == AlertKind::HighHourlyUsage && alert.level == AlertLevel::Critical
+    }));
+    assert!(alerts.iter().any(|alert| {
+        alert.kind == AlertKind::LargeToolOutput
+            && alert.level == AlertLevel::Warning
+            && alert.session_id.as_deref() == Some("session-tool")
+    }));
+}
+
+#[tokio::test]
 async fn store_tests_init_rebuilds_stale_aggregates_from_deduped_token_events() {
     let db_path = std::env::temp_dir().join(format!(
         "codex-token-monitor-backfill-{}-{}.sqlite",
@@ -168,6 +246,32 @@ async fn store_tests_init_rebuilds_stale_aggregates_from_deduped_token_events() 
               tool_output_bytes integer not null default 0,
               last_seen_at text not null default ''
             )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            create table tool_events (
+              id integer primary key autoincrement,
+              session_id text not null,
+              path text not null,
+              timestamp text not null,
+              output_bytes integer not null default 0
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            insert into tool_events (session_id, path, timestamp, output_bytes)
+            values
+              ('session-a', 'C:/tmp/session-a.jsonl', '2026-06-28T01:15:00Z', 2048),
+              ('session-a', 'C:/tmp/session-a.jsonl', '2026-06-28T01:15:00Z', 2048),
+              ('session-b', 'C:/tmp/session-b.jsonl', '2026-06-28T02:05:00Z', 4096)
             "#,
         )
         .execute(&pool)
@@ -282,11 +386,13 @@ async fn store_tests_init_rebuilds_stale_aggregates_from_deduped_token_events() 
         assert_eq!(sessions[0].cached_input_tokens, 15);
         assert_eq!(sessions[0].output_tokens, 30);
         assert_eq!(sessions[0].reasoning_output_tokens, 3);
-        assert_eq!(sessions[0].tool_calls, 0);
-        assert_eq!(sessions[0].tool_output_bytes, 0);
-        assert_eq!(sessions[0].last_seen_at, "2026-06-28T01:10:00Z");
+        assert_eq!(sessions[0].tool_calls, 1);
+        assert_eq!(sessions[0].tool_output_bytes, 2048);
+        assert_eq!(sessions[0].last_seen_at, "2026-06-28T01:15:00Z");
         assert_eq!(sessions[1].session_id, "session-b");
         assert_eq!(sessions[1].total_tokens, 25);
+        assert_eq!(sessions[1].tool_calls, 1);
+        assert_eq!(sessions[1].tool_output_bytes, 4096);
 
         let hours = store.hourly_totals().await.unwrap();
         assert_eq!(hours.len(), 3);

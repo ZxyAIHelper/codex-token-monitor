@@ -41,9 +41,12 @@ pub fn parse_jsonl_line(line: &str) -> Result<CodexEvent, serde_json::Error> {
     if raw.kind.as_deref() == Some("event_msg")
         && payload.get("type").and_then(|value| value.as_str()) == Some("token_count")
     {
-        let usage = payload
+        let Some(usage) = payload
             .get("info")
-            .and_then(|info| info.get("last_token_usage"));
+            .and_then(|info| info.get("last_token_usage"))
+        else {
+            return Ok(CodexEvent::Ignored);
+        };
 
         return Ok(CodexEvent::TokenCount(TokenCountEvent {
             timestamp,
@@ -72,9 +75,9 @@ pub fn parse_jsonl_line(line: &str) -> Result<CodexEvent, serde_json::Error> {
     Ok(CodexEvent::Ignored)
 }
 
-fn token_field(usage: Option<&serde_json::Value>, field: &str) -> i64 {
+fn token_field(usage: &serde_json::Value, field: &str) -> i64 {
     usage
-        .and_then(|value| value.get(field))
+        .get(field)
         .and_then(|value| value.as_i64())
         .unwrap_or(0)
 }

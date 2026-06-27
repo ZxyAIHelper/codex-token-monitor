@@ -6,6 +6,7 @@ pub mod watcher;
 
 use std::{error::Error, path::PathBuf};
 
+use alerts::AlertItem;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
@@ -66,6 +67,11 @@ mod commands {
             .session_turns(&session_id)
             .await
             .map_err(|err| err.to_string())
+    }
+
+    #[tauri::command]
+    pub async fn list_alerts(state: State<'_, AppState>) -> Result<Vec<AlertItem>, String> {
+        state.store.alerts().await.map_err(|err| err.to_string())
     }
 }
 
@@ -143,7 +149,8 @@ pub fn run() {
             commands::list_sessions,
             commands::hourly_totals,
             commands::daily_totals,
-            commands::session_turns
+            commands::session_turns,
+            commands::list_alerts
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");

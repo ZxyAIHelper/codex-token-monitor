@@ -39,7 +39,15 @@ pub fn scan_file(store: &UsageStore, path: &Path, offset: u64) -> Result<u64, St
                 ))
                 .map_err(|err| err.to_string())?;
             }
-            Ok(CodexEvent::ToolOutput(_) | CodexEvent::Ignored) => {}
+            Ok(CodexEvent::ToolOutput(event)) => {
+                tauri::async_runtime::block_on(store.record_tool_output(
+                    &session_id,
+                    &path_text,
+                    event,
+                ))
+                .map_err(|err| err.to_string())?;
+            }
+            Ok(CodexEvent::Ignored) => {}
             // Complete corrupt rows are skipped. An invalid unterminated final row
             // may still be in progress, so leave the offset at the row start.
             Err(_) if complete_line => {}
