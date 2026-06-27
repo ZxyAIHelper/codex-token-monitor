@@ -207,7 +207,7 @@ impl UsageStore {
         .execute(&self.pool)
         .await?;
 
-        self.rebuild_daily_aggregates().await?;
+        self.rebuild_aggregates_from_token_events().await?;
 
         Ok(())
     }
@@ -348,15 +348,107 @@ impl UsageStore {
         tx.commit().await
     }
 
-    async fn rebuild_daily_aggregates(&self) -> Result<(), sqlx::Error> {
+    async fn rebuild_aggregates_from_token_events(&self) -> Result<(), sqlx::Error> {
         let mut tx = self.pool.begin().await?;
 
+        sqlx::query("delete from sessions")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("delete from hourly_sessions")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("delete from hourly_buckets")
+            .execute(&mut *tx)
+            .await?;
         sqlx::query("delete from daily_sessions")
             .execute(&mut *tx)
             .await?;
         sqlx::query("delete from daily_buckets")
             .execute(&mut *tx)
             .await?;
+
+        // Tool counters are not represented in token_events, so rebuilds reset
+        // them to zero instead of preserving potentially stale aggregate rows.
+        sqlx::query(
+            r#"
+            insert into sessions (
+              session_id, path, total_tokens, input_tokens, cached_input_tokens,
+              output_tokens, reasoning_output_tokens, tool_calls,
+              tool_output_bytes, last_seen_at
+            )
+            select
+              totals.session_id,
+              (
+                select latest.path
+                from token_events latest
+                where latest.session_id = totals.session_id
+                order by latest.timestamp desc, latest.id desc
+                limit 1
+              ),
+              totals.total_tokens,
+              totals.input_tokens,
+              totals.cached_input_tokens,
+              totals.output_tokens,
+              totals.reasoning_output_tokens,
+              0,
+              0,
+              totals.last_seen_at
+            from (
+              select
+                session_id,
+                coalesce(sum(total_tokens), 0) as total_tokens,
+                coalesce(sum(input_tokens), 0) as input_tokens,
+                coalesce(sum(cached_input_tokens), 0) as cached_input_tokens,
+                coalesce(sum(output_tokens), 0) as output_tokens,
+                coalesce(sum(reasoning_output_tokens), 0) as reasoning_output_tokens,
+                max(timestamp) as last_seen_at
+              from token_events
+              group by session_id
+            ) totals
+            "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            insert into hourly_sessions (bucket, session_id)
+            select strftime('%Y-%m-%dT%H:00:00Z', timestamp), session_id
+            from token_events
+            where strftime('%Y-%m-%dT%H:00:00Z', timestamp) is not null
+            group by strftime('%Y-%m-%dT%H:00:00Z', timestamp), session_id
+            "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            insert into hourly_buckets (
+              bucket, total_tokens, input_tokens, output_tokens, session_count
+            )
+            select
+              bucket,
+              coalesce(sum(total_tokens), 0),
+              coalesce(sum(input_tokens), 0),
+              coalesce(sum(output_tokens), 0),
+              count(distinct session_id)
+            from (
+              select
+                strftime('%Y-%m-%dT%H:00:00Z', timestamp) as bucket,
+                session_id,
+                total_tokens,
+                input_tokens,
+                output_tokens
+              from token_events
+              where strftime('%Y-%m-%dT%H:00:00Z', timestamp) is not null
+            ) hourly_events
+            group by bucket
+            "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+
         sqlx::query(
             r#"
             insert into daily_sessions (bucket, session_id)

@@ -99,7 +99,7 @@ async fn store_tests_duplicate_token_events_are_idempotent() {
 }
 
 #[tokio::test]
-async fn store_tests_init_backfills_daily_totals_from_existing_token_events() {
+async fn store_tests_init_rebuilds_stale_aggregates_from_deduped_token_events() {
     let db_path = std::env::temp_dir().join(format!(
         "codex-token-monitor-backfill-{}-{}.sqlite",
         std::process::id(),
@@ -145,8 +145,122 @@ async fn store_tests_init_backfills_daily_totals_from_existing_token_events() {
             )
             values
               ('session-a', 'C:/tmp/session-a.jsonl', '2026-06-27T23:50:00Z', 100, 80, 10, 20, 1),
+              ('session-a', 'C:/tmp/session-a.jsonl', '2026-06-27T23:50:00Z', 100, 80, 10, 20, 1),
               ('session-a', 'C:/tmp/session-a.jsonl', '2026-06-28T01:10:00Z', 50, 40, 5, 10, 2),
+              ('session-b', 'C:/tmp/session-b.jsonl', '2026-06-28T02:00:00Z', 25, 20, 0, 5, 0),
               ('session-b', 'C:/tmp/session-b.jsonl', '2026-06-28T02:00:00Z', 25, 20, 0, 5, 0)
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            create table sessions (
+              session_id text primary key,
+              path text not null,
+              total_tokens integer not null default 0,
+              input_tokens integer not null default 0,
+              cached_input_tokens integer not null default 0,
+              output_tokens integer not null default 0,
+              reasoning_output_tokens integer not null default 0,
+              tool_calls integer not null default 0,
+              tool_output_bytes integer not null default 0,
+              last_seen_at text not null default ''
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            insert into sessions (
+              session_id, path, total_tokens, input_tokens, cached_input_tokens,
+              output_tokens, reasoning_output_tokens, tool_calls, tool_output_bytes, last_seen_at
+            )
+            values
+              ('session-a', 'stale-a', 999, 999, 999, 999, 999, 9, 9999, '2026-06-29T00:00:00Z'),
+              ('session-b', 'stale-b', 999, 999, 999, 999, 999, 9, 9999, '2026-06-29T00:00:00Z')
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            create table hourly_sessions (
+              bucket text not null,
+              session_id text not null,
+              primary key (bucket, session_id)
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            create table hourly_buckets (
+              bucket text primary key,
+              total_tokens integer not null default 0,
+              input_tokens integer not null default 0,
+              output_tokens integer not null default 0,
+              session_count integer not null default 0
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            insert into hourly_buckets (
+              bucket, total_tokens, input_tokens, output_tokens, session_count
+            )
+            values
+              ('2026-06-27T23:00:00Z', 999, 999, 999, 9),
+              ('2026-06-28T01:00:00Z', 999, 999, 999, 9),
+              ('2026-06-28T02:00:00Z', 999, 999, 999, 9)
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            create table daily_sessions (
+              bucket text not null,
+              session_id text not null,
+              primary key (bucket, session_id)
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            create table daily_buckets (
+              bucket text primary key,
+              total_tokens integer not null default 0,
+              input_tokens integer not null default 0,
+              output_tokens integer not null default 0,
+              session_count integer not null default 0
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query(
+            r#"
+            insert into daily_buckets (
+              bucket, total_tokens, input_tokens, output_tokens, session_count
+            )
+            values
+              ('2026-06-27', 999, 999, 999, 9),
+              ('2026-06-28', 999, 999, 999, 9)
             "#,
         )
         .execute(&pool)
@@ -159,6 +273,35 @@ async fn store_tests_init_backfills_daily_totals_from_existing_token_events() {
         let store = UsageStore::open(db_path.to_str().unwrap()).await.unwrap();
         store.init().await.unwrap();
 
+        let sessions = store.sessions().await.unwrap();
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0].session_id, "session-a");
+        assert_eq!(sessions[0].path, "C:/tmp/session-a.jsonl");
+        assert_eq!(sessions[0].total_tokens, 150);
+        assert_eq!(sessions[0].input_tokens, 120);
+        assert_eq!(sessions[0].cached_input_tokens, 15);
+        assert_eq!(sessions[0].output_tokens, 30);
+        assert_eq!(sessions[0].reasoning_output_tokens, 3);
+        assert_eq!(sessions[0].tool_calls, 0);
+        assert_eq!(sessions[0].tool_output_bytes, 0);
+        assert_eq!(sessions[0].last_seen_at, "2026-06-28T01:10:00Z");
+        assert_eq!(sessions[1].session_id, "session-b");
+        assert_eq!(sessions[1].total_tokens, 25);
+
+        let hours = store.hourly_totals().await.unwrap();
+        assert_eq!(hours.len(), 3);
+        assert_eq!(hours[0].bucket, "2026-06-27T23:00:00Z");
+        assert_eq!(hours[0].total_tokens, 100);
+        assert_eq!(hours[0].input_tokens, 80);
+        assert_eq!(hours[0].output_tokens, 20);
+        assert_eq!(hours[0].session_count, 1);
+        assert_eq!(hours[1].bucket, "2026-06-28T01:00:00Z");
+        assert_eq!(hours[1].total_tokens, 50);
+        assert_eq!(hours[1].session_count, 1);
+        assert_eq!(hours[2].bucket, "2026-06-28T02:00:00Z");
+        assert_eq!(hours[2].total_tokens, 25);
+        assert_eq!(hours[2].session_count, 1);
+
         let days = store.daily_totals().await.unwrap();
         assert_eq!(days.len(), 2);
         assert_eq!(days[0].bucket, "2026-06-27");
@@ -169,6 +312,22 @@ async fn store_tests_init_backfills_daily_totals_from_existing_token_events() {
         assert_eq!(days[1].input_tokens, 60);
         assert_eq!(days[1].output_tokens, 15);
         assert_eq!(days[1].session_count, 2);
+
+        let turns = store.session_turns("session-a").await.unwrap();
+        assert_eq!(turns.len(), 2);
+        assert_eq!(turns[0].total_tokens, 100);
+        assert_eq!(turns[1].total_tokens, 50);
+
+        let now = DateTime::parse_from_rfc3339("2026-06-28T03:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let summary = store.dashboard_summary_at(now).await.unwrap();
+        assert_eq!(summary.today_total_tokens, 75);
+        assert_eq!(summary.last_hour_tokens, 25);
+        assert_eq!(summary.last_five_hours_tokens, 175);
+        assert_eq!(summary.active_session_count, 2);
+        assert_eq!(summary.input_tokens, 140);
+        assert_eq!(summary.output_tokens, 35);
 
         store
             .record_token_count(
