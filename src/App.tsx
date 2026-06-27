@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { dashboardSummary, getSessionTurns, hourlyTotals, listSessions } from "./api";
+import { dashboardSummary, getAlerts, getSessionTurns, hourlyTotals, listSessions } from "./api";
 import { AlertList } from "./components/AlertList";
 import { HourlyTrend } from "./components/HourlyTrend";
 import { SessionDetail } from "./components/SessionDetail";
 import { SessionTable } from "./components/SessionTable";
 import { SummaryCards } from "./components/SummaryCards";
-import type { DashboardSummary, SessionSummary, TimeBucket, TurnDetail } from "./types";
+import type { AlertItem, DashboardSummary, SessionSummary, TimeBucket, TurnDetail } from "./types";
 
 const REFRESH_INTERVAL_MS = 5_000;
 
@@ -13,6 +13,7 @@ function App() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [hourlyBuckets, setHourlyBuckets] = useState<TimeBucket[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,10 +38,11 @@ function App() {
       latestRequestId = requestId;
 
       try {
-        const [nextSummary, nextSessions, nextHourlyBuckets] = await Promise.all([
+        const [nextSummary, nextSessions, nextHourlyBuckets, nextAlerts] = await Promise.all([
           dashboardSummary(),
           listSessions(),
           hourlyTotals(),
+          getAlerts(),
         ]);
 
         if (!isMounted || requestId !== latestRequestId) {
@@ -50,6 +52,7 @@ function App() {
         setSummary(nextSummary);
         setSessions(nextSessions);
         setHourlyBuckets(nextHourlyBuckets);
+        setAlerts(nextAlerts);
         setUpdatedAt(new Date());
         setError(null);
       } catch (err) {
@@ -153,7 +156,7 @@ function App() {
 
       <section className="lower-grid">
         <SessionTable sessions={sessions} onOpenSession={handleOpenSession} />
-        <AlertList />
+        <AlertList alerts={alerts} />
       </section>
     </main>
   );

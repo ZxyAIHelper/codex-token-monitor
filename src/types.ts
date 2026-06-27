@@ -7,6 +7,18 @@ export interface DashboardSummary {
   output_tokens: number;
 }
 
+export type AlertLevel = "Warning" | "Critical";
+
+export type AlertKind = "LargeToolOutput" | "HighSessionUsage" | "HighHourlyUsage";
+
+export interface AlertItem {
+  level: AlertLevel;
+  kind: AlertKind;
+  message: string;
+  timestamp: string;
+  session_id: string | null;
+}
+
 export interface SessionSummary {
   session_id: string;
   path: string;

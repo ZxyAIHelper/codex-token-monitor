@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { DashboardSummary, SessionSummary, TimeBucket, TurnDetail } from "./types";
+import type { AlertItem, DashboardSummary, SessionSummary, TimeBucket, TurnDetail } from "./types";
 
 export function dashboardSummary(): Promise<DashboardSummary> {
   return invoke<DashboardSummary>("dashboard_summary");
@@ -7,6 +7,10 @@ export function dashboardSummary(): Promise<DashboardSummary> {
 
 export function listSessions(): Promise<SessionSummary[]> {
   return invoke<SessionSummary[]>("list_sessions");
+}
+
+export function getAlerts(): Promise<AlertItem[]> {
+  return invoke<AlertItem[]>("list_alerts");
 }
 
 export function hourlyTotals(): Promise<TimeBucket[]> {

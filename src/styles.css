@@ -319,12 +319,72 @@ tbody tr:hover {
 }
 
 .alert-list li {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
   padding: 10px;
   border: 1px solid #62432a;
   border-radius: 8px;
   background: #241d16;
   color: #ffd7a3;
   font-size: 13px;
+}
+
+.alert-list p {
+  margin: 0;
+  color: #ffe4bd;
+  line-height: 1.35;
+}
+
+.alert-item-header,
+.alert-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.alert-item-header {
+  color: #ffc16b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.alert-level {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #3b2a18;
+  color: #ffd08a;
+}
+
+.alert-critical {
+  border-color: #6b3030;
+  background: #281819;
+  color: #ffc6c6;
+}
+
+.alert-critical .alert-level {
+  background: #4b1f24;
+  color: #ffb4b4;
+}
+
+.alert-critical .alert-item-header {
+  color: #ffb4b4;
+}
+
+.alert-critical p {
+  color: #ffd4d4;
+}
+
+.alert-meta {
+  color: #9d8976;
+  font-size: 11px;
+}
+
+.alert-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-view {

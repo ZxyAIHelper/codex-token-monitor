@@ -1,6 +1,10 @@
 use std::{
     fs,
     path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread,
     time::{Duration, SystemTime},
 };
@@ -24,17 +28,17 @@ struct Candidate {
     modified_at: String,
 }
 
-pub fn start_background_monitor(store: UsageStore) {
+pub fn start_background_monitor(store: UsageStore, paused: Arc<AtomicBool>) {
     match thread::Builder::new()
         .name("codex-token-monitor".to_string())
-        .spawn(move || monitor_loop(store))
+        .spawn(move || monitor_loop(store, paused))
     {
         Ok(_) => {}
         Err(err) => eprintln!("codex-token-monitor: failed to start monitor thread: {err}"),
     }
 }
 
-fn monitor_loop(store: UsageStore) {
+fn monitor_loop(store: UsageStore, paused: Arc<AtomicBool>) {
     let Some(sessions_dir) = default_codex_sessions_dir() else {
         eprintln!("codex-token-monitor: home directory unavailable");
         return;
@@ -42,6 +46,11 @@ fn monitor_loop(store: UsageStore) {
 
     let mut logged_missing_sessions_dir = false;
     loop {
+        if paused.load(Ordering::Relaxed) {
+            thread::sleep(RECONCILE_INTERVAL);
+            continue;
+        }
+
         if !sessions_dir_ready(&sessions_dir) {
             if !logged_missing_sessions_dir {
                 eprintln!(
