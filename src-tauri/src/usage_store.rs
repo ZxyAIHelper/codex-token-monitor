@@ -131,6 +131,32 @@ impl UsageStore {
 
         sqlx::query(
             r#"
+            delete from token_events
+            where id not in (
+              select min(id)
+              from token_events
+              group by session_id, path, timestamp, total_tokens, input_tokens,
+                       cached_input_tokens, output_tokens, reasoning_output_tokens
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            create unique index if not exists idx_token_events_unique_event
+            on token_events (
+              session_id, path, timestamp, total_tokens, input_tokens,
+              cached_input_tokens, output_tokens, reasoning_output_tokens
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
             create table if not exists hourly_sessions (
               bucket text not null,
               session_id text not null,
@@ -181,6 +207,8 @@ impl UsageStore {
         .execute(&self.pool)
         .await?;
 
+        self.rebuild_daily_aggregates().await?;
+
         Ok(())
     }
 
@@ -195,6 +223,31 @@ impl UsageStore {
         let day_bucket = day_bucket_from_datetime(event_timestamp);
         let event_timestamp = event_timestamp.to_rfc3339_opts(SecondsFormat::Secs, true);
         let mut tx = self.pool.begin().await?;
+
+        let token_event_insert = sqlx::query(
+            r#"
+            insert into token_events (
+              session_id, path, timestamp, total_tokens, input_tokens,
+              cached_input_tokens, output_tokens, reasoning_output_tokens
+            )
+            values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            on conflict do nothing
+            "#,
+        )
+        .bind(session_id)
+        .bind(path)
+        .bind(&event_timestamp)
+        .bind(event.total_tokens)
+        .bind(event.input_tokens)
+        .bind(event.cached_input_tokens)
+        .bind(event.output_tokens)
+        .bind(event.reasoning_output_tokens)
+        .execute(&mut *tx)
+        .await?;
+        if token_event_insert.rows_affected() == 0 {
+            tx.commit().await?;
+            return Ok(());
+        }
 
         sqlx::query(
             r#"
@@ -221,26 +274,6 @@ impl UsageStore {
         .bind(event.output_tokens)
         .bind(event.reasoning_output_tokens)
         .bind(&event_timestamp)
-        .execute(&mut *tx)
-        .await?;
-
-        sqlx::query(
-            r#"
-            insert into token_events (
-              session_id, path, timestamp, total_tokens, input_tokens,
-              cached_input_tokens, output_tokens, reasoning_output_tokens
-            )
-            values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-            "#,
-        )
-        .bind(session_id)
-        .bind(path)
-        .bind(&event_timestamp)
-        .bind(event.total_tokens)
-        .bind(event.input_tokens)
-        .bind(event.cached_input_tokens)
-        .bind(event.output_tokens)
-        .bind(event.reasoning_output_tokens)
         .execute(&mut *tx)
         .await?;
 
@@ -309,6 +342,48 @@ impl UsageStore {
         .bind(event.input_tokens)
         .bind(event.output_tokens)
         .bind(daily_session_delta)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await
+    }
+
+    async fn rebuild_daily_aggregates(&self) -> Result<(), sqlx::Error> {
+        let mut tx = self.pool.begin().await?;
+
+        sqlx::query("delete from daily_sessions")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query("delete from daily_buckets")
+            .execute(&mut *tx)
+            .await?;
+        sqlx::query(
+            r#"
+            insert into daily_sessions (bucket, session_id)
+            select date(timestamp), session_id
+            from token_events
+            where date(timestamp) is not null
+            group by date(timestamp), session_id
+            "#,
+        )
+        .execute(&mut *tx)
+        .await?;
+        sqlx::query(
+            r#"
+            insert into daily_buckets (
+              bucket, total_tokens, input_tokens, output_tokens, session_count
+            )
+            select
+              date(timestamp),
+              coalesce(sum(total_tokens), 0),
+              coalesce(sum(input_tokens), 0),
+              coalesce(sum(output_tokens), 0),
+              count(distinct session_id)
+            from token_events
+            where date(timestamp) is not null
+            group by date(timestamp)
+            "#,
+        )
         .execute(&mut *tx)
         .await?;
 
