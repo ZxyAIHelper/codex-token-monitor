@@ -1,4 +1,6 @@
+pub mod alerts;
 pub mod codex_log;
+pub mod scanner;
 pub mod usage_store;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
