@@ -177,6 +177,7 @@ impl UsageStore {
               id integer primary key autoincrement,
               session_id text not null,
               path text not null,
+              line_start_offset integer,
               timestamp text not null,
               output_bytes integer not null default 0
             )
@@ -185,12 +186,16 @@ impl UsageStore {
         .execute(&self.pool)
         .await?;
 
+        self.ensure_tool_event_offset_column().await?;
+
         sqlx::query(
             r#"
             delete from tool_events
-            where id not in (
+            where line_start_offset is null
+              and id not in (
               select min(id)
               from tool_events
+              where line_start_offset is null
               group by session_id, path, timestamp, output_bytes
             )
             "#,
@@ -200,8 +205,28 @@ impl UsageStore {
 
         sqlx::query(
             r#"
+            delete from tool_events
+            where line_start_offset is not null
+              and id not in (
+              select min(id)
+              from tool_events
+              where line_start_offset is not null
+              group by path, line_start_offset
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query("drop index if exists idx_tool_events_unique_event")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query(
+            r#"
             create unique index if not exists idx_tool_events_unique_event
-            on tool_events (session_id, path, timestamp, output_bytes)
+            on tool_events (path, line_start_offset)
+            where line_start_offset is not null
             "#,
         )
         .execute(&self.pool)
@@ -407,21 +432,28 @@ impl UsageStore {
         &self,
         session_id: &str,
         path: &str,
+        line_start_offset: u64,
         event: ToolOutputEvent,
     ) -> Result<(), sqlx::Error> {
         let event_timestamp = parse_timestamp_utc(&event.timestamp)?;
         let event_timestamp = event_timestamp.to_rfc3339_opts(SecondsFormat::Secs, true);
+        let line_start_offset = i64::try_from(line_start_offset).map_err(|_| {
+            sqlx::Error::Protocol(
+                "tool output line offset exceeds sqlite integer range".to_string(),
+            )
+        })?;
         let mut tx = self.pool.begin().await?;
 
         let tool_event_insert = sqlx::query(
             r#"
-            insert into tool_events (session_id, path, timestamp, output_bytes)
-            values (?1, ?2, ?3, ?4)
+            insert into tool_events (session_id, path, line_start_offset, timestamp, output_bytes)
+            values (?1, ?2, ?3, ?4, ?5)
             on conflict do nothing
             "#,
         )
         .bind(session_id)
         .bind(path)
+        .bind(line_start_offset)
         .bind(&event_timestamp)
         .bind(event.output_bytes)
         .execute(&mut *tx)
@@ -455,6 +487,22 @@ impl UsageStore {
         .await?;
 
         tx.commit().await
+    }
+
+    async fn ensure_tool_event_offset_column(&self) -> Result<(), sqlx::Error> {
+        let column_count = sqlx::query_scalar::<_, i64>(
+            "select count(*) from pragma_table_info('tool_events') where name = 'line_start_offset'",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        if column_count == 0 {
+            sqlx::query("alter table tool_events add column line_start_offset integer")
+                .execute(&self.pool)
+                .await?;
+        }
+
+        Ok(())
     }
 
     pub async fn session_file_offset(

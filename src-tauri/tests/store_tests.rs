@@ -109,11 +109,11 @@ async fn store_tests_records_tool_output_idempotently() {
     };
 
     store
-        .record_tool_output("session-a", "C:/tmp/session.jsonl", event.clone())
+        .record_tool_output("session-a", "C:/tmp/session.jsonl", 128, event.clone())
         .await
         .unwrap();
     store
-        .record_tool_output("session-a", "C:/tmp/session.jsonl", event)
+        .record_tool_output("session-a", "C:/tmp/session.jsonl", 128, event)
         .await
         .unwrap();
 
@@ -123,6 +123,31 @@ async fn store_tests_records_tool_output_idempotently() {
     assert_eq!(sessions[0].total_tokens, 0);
     assert_eq!(sessions[0].tool_calls, 1);
     assert_eq!(sessions[0].tool_output_bytes, 2048);
+    assert_eq!(sessions[0].last_seen_at, "2026-06-27T12:34:56Z");
+}
+
+#[tokio::test]
+async fn store_tests_counts_tool_outputs_with_same_timestamp_and_size_at_different_offsets() {
+    let store = UsageStore::memory().await.unwrap();
+    store.init().await.unwrap();
+    let event = ToolOutputEvent {
+        timestamp: "2026-06-27T12:34:56.987Z".to_string(),
+        output_bytes: 2048,
+    };
+
+    store
+        .record_tool_output("session-a", "C:/tmp/session.jsonl", 128, event.clone())
+        .await
+        .unwrap();
+    store
+        .record_tool_output("session-a", "C:/tmp/session.jsonl", 256, event)
+        .await
+        .unwrap();
+
+    let sessions = store.sessions().await.unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].tool_calls, 2);
+    assert_eq!(sessions[0].tool_output_bytes, 4096);
     assert_eq!(sessions[0].last_seen_at, "2026-06-27T12:34:56Z");
 }
 
@@ -151,6 +176,7 @@ async fn store_tests_alerts_report_threshold_breaches() {
         .record_tool_output(
             "session-tool",
             "C:/tmp/session-tool.jsonl",
+            512,
             ToolOutputEvent {
                 timestamp: "2026-06-27T12:30:00Z".to_string(),
                 output_bytes: 50 * 1024 + 1,

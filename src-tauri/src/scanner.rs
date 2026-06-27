@@ -43,6 +43,7 @@ pub fn scan_file(store: &UsageStore, path: &Path, offset: u64) -> Result<u64, St
                 tauri::async_runtime::block_on(store.record_tool_output(
                     &session_id,
                     &path_text,
+                    line_start_offset,
                     event,
                 ))
                 .map_err(|err| err.to_string())?;
