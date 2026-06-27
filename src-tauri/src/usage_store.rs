@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use chrono::{DateTime, SecondsFormat, Timelike, Utc};
+use chrono::{DateTime, Duration, SecondsFormat, Timelike, Utc};
 use serde::Serialize;
 use sqlx::{
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
@@ -35,6 +35,16 @@ pub struct TimeBucket {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub session_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DashboardSummary {
+    pub today_total_tokens: i64,
+    pub last_hour_tokens: i64,
+    pub last_five_hours_tokens: i64,
+    pub active_session_count: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
 }
 
 impl UsageStore {
@@ -219,6 +229,53 @@ impl UsageStore {
         .fetch_all(&self.pool)
         .await
     }
+
+    pub async fn dashboard_summary(&self) -> Result<DashboardSummary, sqlx::Error> {
+        self.dashboard_summary_at(Utc::now()).await
+    }
+
+    pub async fn dashboard_summary_at(
+        &self,
+        now: DateTime<Utc>,
+    ) -> Result<DashboardSummary, sqlx::Error> {
+        let current_hour = hour_bucket_from_datetime(now);
+        let today_start = day_start(now);
+        let last_five_hours_start = hour_bucket_from_datetime(now - Duration::hours(4));
+        let now_rfc3339 = now.to_rfc3339_opts(SecondsFormat::Secs, true);
+
+        let today_total_tokens = sum_hourly_tokens(&self.pool, &today_start, &current_hour).await?;
+        let last_hour_tokens = sum_hourly_tokens(&self.pool, &current_hour, &current_hour).await?;
+        let last_five_hours_tokens =
+            sum_hourly_tokens(&self.pool, &last_five_hours_start, &current_hour).await?;
+        let active_session_count = sqlx::query_scalar::<_, i64>(
+            r#"
+            select count(*)
+            from sessions
+            where last_seen_at >= ?1 and last_seen_at <= ?2
+            "#,
+        )
+        .bind(&last_five_hours_start)
+        .bind(&now_rfc3339)
+        .fetch_one(&self.pool)
+        .await?;
+        let (input_tokens, output_tokens) = sqlx::query_as::<_, (i64, i64)>(
+            r#"
+            select coalesce(sum(input_tokens), 0), coalesce(sum(output_tokens), 0)
+            from sessions
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(DashboardSummary {
+            today_total_tokens,
+            last_hour_tokens,
+            last_five_hours_tokens,
+            active_session_count,
+            input_tokens,
+            output_tokens,
+        })
+    }
 }
 
 fn hour_bucket(timestamp: &str) -> Result<String, sqlx::Error> {
@@ -226,10 +283,43 @@ fn hour_bucket(timestamp: &str) -> Result<String, sqlx::Error> {
         .map(|dt| dt.with_timezone(&Utc))
         .map_err(|err| sqlx::Error::Protocol(format!("invalid token timestamp: {err}")))?;
 
-    Ok(parsed
+    Ok(hour_bucket_from_datetime(parsed))
+}
+
+fn hour_bucket_from_datetime(timestamp: DateTime<Utc>) -> String {
+    timestamp
         .with_minute(0)
         .and_then(|dt| dt.with_second(0))
         .and_then(|dt| dt.with_nanosecond(0))
         .expect("zeroed hour timestamp should be valid")
-        .to_rfc3339_opts(SecondsFormat::Secs, true))
+        .to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+fn day_start(timestamp: DateTime<Utc>) -> String {
+    DateTime::<Utc>::from_naive_utc_and_offset(
+        timestamp
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .expect("midnight should be valid"),
+        Utc,
+    )
+    .to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+async fn sum_hourly_tokens(
+    pool: &SqlitePool,
+    start_bucket: &str,
+    end_bucket: &str,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar::<_, i64>(
+        r#"
+        select coalesce(sum(total_tokens), 0)
+        from hourly_buckets
+        where bucket >= ?1 and bucket <= ?2
+        "#,
+    )
+    .bind(start_bucket)
+    .bind(end_bucket)
+    .fetch_one(pool)
+    .await
 }
