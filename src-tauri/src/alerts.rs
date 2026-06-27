@@ -16,9 +16,9 @@ pub enum AlertLevel {
 }
 
 pub fn token_level(value: i64, warning: i64, critical: i64) -> Option<AlertLevel> {
-    if value >= critical {
+    if value > critical {
         Some(AlertLevel::Critical)
-    } else if value >= warning {
+    } else if value > warning {
         Some(AlertLevel::Warning)
     } else {
         None

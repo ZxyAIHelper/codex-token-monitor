@@ -16,6 +16,28 @@ fn extracts_session_id_from_rollout_filename() {
 }
 
 #[test]
+fn rejects_non_jsonl_and_malformed_rollout_filenames() {
+    let session_id = "019f08f1-c13e-7ea1-b57d-8ba3bc9d4186";
+
+    assert_eq!(
+        extract_session_id(Path::new(&format!(
+            "C:/tmp/rollout-2026-06-27T19-58-09-{session_id}.txt"
+        ))),
+        None
+    );
+    assert_eq!(
+        extract_session_id(Path::new(&format!("C:/tmp/rollout-{session_id}.jsonl"))),
+        None
+    );
+    assert_eq!(
+        extract_session_id(Path::new(&format!(
+            "C:/tmp/rollout-not-a-date-{session_id}.jsonl"
+        ))),
+        None
+    );
+}
+
+#[test]
 fn scans_only_jsonl_files_case_insensitively() {
     assert!(should_scan_path(Path::new("a.jsonl")));
     assert!(should_scan_path(Path::new("a.JSONL")));
@@ -40,11 +62,27 @@ fn classifies_alert_threshold_levels() {
             HOURLY_WARNING_TOKENS,
             HOURLY_CRITICAL_TOKENS
         ),
-        Some(AlertLevel::Warning)
+        None
     );
     assert_eq!(
         token_level(
             HOURLY_CRITICAL_TOKENS,
+            HOURLY_WARNING_TOKENS,
+            HOURLY_CRITICAL_TOKENS
+        ),
+        Some(AlertLevel::Warning)
+    );
+    assert_eq!(
+        token_level(
+            HOURLY_WARNING_TOKENS + 1,
+            HOURLY_WARNING_TOKENS,
+            HOURLY_CRITICAL_TOKENS
+        ),
+        Some(AlertLevel::Warning)
+    );
+    assert_eq!(
+        token_level(
+            HOURLY_CRITICAL_TOKENS + 1,
             HOURLY_WARNING_TOKENS,
             HOURLY_CRITICAL_TOKENS
         ),

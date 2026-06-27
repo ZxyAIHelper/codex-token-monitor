@@ -7,17 +7,35 @@ pub fn should_scan_path(path: &Path) -> bool {
 }
 
 pub fn extract_session_id(path: &Path) -> Option<String> {
-    let stem = path.file_stem()?.to_str()?;
-    if !stem.starts_with("rollout-") {
+    if !should_scan_path(path) {
         return None;
     }
 
-    let session_id = stem.get(stem.len().checked_sub(36)?..)?;
+    let stem = path.file_stem()?.to_str()?;
+    let rest = stem.strip_prefix("rollout-")?;
+    let timestamp = rest.get(..19)?;
+    let session_id = rest.get(20..)?;
+    if rest.get(19..20)? != "-" {
+        return None;
+    }
+    if !is_rollout_timestamp(timestamp) {
+        return None;
+    }
+
     if is_uuid_like(session_id) {
         Some(session_id.to_string())
     } else {
         None
     }
+}
+
+fn is_rollout_timestamp(value: &str) -> bool {
+    value.len() == 19
+        && value.char_indices().all(|(idx, ch)| match idx {
+            4 | 7 | 13 | 16 => ch == '-',
+            10 => ch == 'T',
+            _ => ch.is_ascii_digit(),
+        })
 }
 
 fn is_uuid_like(value: &str) -> bool {
