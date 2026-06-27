@@ -1,8 +1,10 @@
 use codex_token_monitor_lib::alerts::{
     token_level, AlertLevel, HOURLY_CRITICAL_TOKENS, HOURLY_WARNING_TOKENS,
 };
-use codex_token_monitor_lib::scanner::{extract_session_id, should_scan_path};
-use std::path::Path;
+use codex_token_monitor_lib::scanner::{extract_session_id, scan_file, should_scan_path};
+use codex_token_monitor_lib::usage_store::UsageStore;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn extracts_session_id_from_rollout_filename() {
@@ -88,4 +90,108 @@ fn classifies_alert_threshold_levels() {
         ),
         Some(AlertLevel::Critical)
     );
+}
+
+#[test]
+fn scan_file_records_token_counts_and_returns_offsets() {
+    let store = tauri::async_runtime::block_on(async {
+        let store = UsageStore::memory().await.unwrap();
+        store.init().await.unwrap();
+        store
+    });
+    let path = temp_rollout_path("scan-offset");
+    let mut file = std::fs::File::create(&path).unwrap();
+    writeln!(
+        file,
+        r#"{{"timestamp":"2026-06-27T12:00:00Z","type":"event_msg","payload":{{"type":"token_count","info":{{"last_token_usage":{{"input_tokens":100,"cached_input_tokens":40,"output_tokens":7,"reasoning_output_tokens":3,"total_tokens":107}}}}}}}}"#
+    )
+    .unwrap();
+    writeln!(
+        file,
+        r#"{{"timestamp":"2026-06-27T12:00:01Z","type":"response_item","payload":{{"type":"message","role":"assistant","content":[]}}}}"#
+    )
+    .unwrap();
+    let first_len = file.metadata().unwrap().len();
+
+    let first_offset = scan_file(&store, &path, 0).unwrap();
+
+    assert_eq!(first_offset, first_len);
+    tauri::async_runtime::block_on(async {
+        let sessions = store.sessions().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(
+            sessions[0].session_id,
+            "019f08f1-c13e-7ea1-b57d-8ba3bc9d4186"
+        );
+        assert_eq!(sessions[0].total_tokens, 107);
+    });
+
+    writeln!(
+        file,
+        r#"{{"timestamp":"2026-06-27T13:00:00Z","type":"event_msg","payload":{{"type":"token_count","info":{{"last_token_usage":{{"input_tokens":50,"cached_input_tokens":10,"output_tokens":5,"reasoning_output_tokens":1,"total_tokens":55}}}}}}}}"#
+    )
+    .unwrap();
+
+    let second_offset = scan_file(&store, &path, first_offset).unwrap();
+
+    assert_eq!(second_offset, file.metadata().unwrap().len());
+    tauri::async_runtime::block_on(async {
+        let sessions = store.sessions().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].total_tokens, 162);
+        let turns = store
+            .session_turns("019f08f1-c13e-7ea1-b57d-8ba3bc9d4186")
+            .await
+            .unwrap();
+        assert_eq!(turns.len(), 2);
+    });
+
+    cleanup_temp_rollout(&path);
+}
+
+#[test]
+fn scan_file_skips_invalid_json_and_continues() {
+    let store = tauri::async_runtime::block_on(async {
+        let store = UsageStore::memory().await.unwrap();
+        store.init().await.unwrap();
+        store
+    });
+    let path = temp_rollout_path("scan-invalid-json");
+    let mut file = std::fs::File::create(&path).unwrap();
+    writeln!(file, r#"{{"timestamp":"2026-06-27T12:00:00Z""#).unwrap();
+    writeln!(
+        file,
+        r#"{{"timestamp":"2026-06-27T12:00:01Z","type":"event_msg","payload":{{"type":"token_count","info":{{"last_token_usage":{{"input_tokens":10,"cached_input_tokens":0,"output_tokens":2,"reasoning_output_tokens":0,"total_tokens":12}}}}}}}}"#
+    )
+    .unwrap();
+
+    let offset = scan_file(&store, &path, 0).unwrap();
+
+    assert_eq!(offset, file.metadata().unwrap().len());
+    tauri::async_runtime::block_on(async {
+        let sessions = store.sessions().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].total_tokens, 12);
+    });
+
+    cleanup_temp_rollout(&path);
+}
+
+fn temp_rollout_path(label: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "codex-token-monitor-{label}-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    dir.join("rollout-2026-06-27T19-58-09-019f08f1-c13e-7ea1-b57d-8ba3bc9d4186.jsonl")
+}
+
+fn cleanup_temp_rollout(path: &Path) {
+    let _ = std::fs::remove_file(path);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::remove_dir(parent);
+    }
 }

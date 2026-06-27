@@ -1,4 +1,53 @@
-use std::path::Path;
+use std::{
+    fs::File,
+    io::{BufRead, BufReader, Seek, SeekFrom},
+    path::{Path, PathBuf},
+};
+
+use crate::{
+    codex_log::{parse_jsonl_line, CodexEvent},
+    usage_store::UsageStore,
+};
+
+pub fn scan_file(store: &UsageStore, path: &Path, offset: u64) -> Result<u64, String> {
+    let session_id = extract_session_id(path)
+        .ok_or_else(|| format!("cannot extract session id from {}", path.display()))?;
+    let path_text = path.to_string_lossy().to_string();
+    let mut reader = BufReader::new(File::open(path).map_err(|err| err.to_string())?);
+    reader
+        .seek(SeekFrom::Start(offset))
+        .map_err(|err| err.to_string())?;
+
+    let mut line = String::new();
+    loop {
+        line.clear();
+        let bytes_read = reader.read_line(&mut line).map_err(|err| err.to_string())?;
+        if bytes_read == 0 {
+            break;
+        }
+
+        match parse_jsonl_line(line.trim_end_matches(['\r', '\n'])) {
+            Ok(CodexEvent::TokenCount(event)) => {
+                tauri::async_runtime::block_on(store.record_token_count(
+                    &session_id,
+                    &path_text,
+                    event,
+                ))
+                .map_err(|err| err.to_string())?;
+            }
+            Ok(CodexEvent::ToolOutput(_) | CodexEvent::Ignored) => {}
+            // Corrupt or partially-written JSONL rows are skipped deterministically.
+            // The returned offset advances past them so the scanner does not retry forever.
+            Err(_) => {}
+        }
+    }
+
+    reader.stream_position().map_err(|err| err.to_string())
+}
+
+pub fn default_codex_sessions_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(".codex").join("sessions"))
+}
 
 pub fn should_scan_path(path: &Path) -> bool {
     path.extension()

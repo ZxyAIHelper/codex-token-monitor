@@ -2,6 +2,7 @@ pub mod alerts;
 pub mod codex_log;
 pub mod scanner;
 pub mod usage_store;
+pub mod watcher;
 
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -117,6 +118,7 @@ pub fn run() {
         .manage(AppState { store })
         .setup(|app| {
             setup_tray(app)?;
+            watcher::start_background_monitor(app.state::<AppState>().store.clone());
             Ok(())
         })
         .on_window_event(|window, event| {
