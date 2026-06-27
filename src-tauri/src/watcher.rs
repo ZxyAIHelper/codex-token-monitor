@@ -40,20 +40,30 @@ fn monitor_loop(store: UsageStore) {
         return;
     };
 
-    if !sessions_dir.is_dir() {
-        eprintln!(
-            "codex-token-monitor: sessions directory not found: {}",
-            sessions_dir.display()
-        );
-        return;
-    }
-
+    let mut logged_missing_sessions_dir = false;
     loop {
+        if !sessions_dir_ready(&sessions_dir) {
+            if !logged_missing_sessions_dir {
+                eprintln!(
+                    "codex-token-monitor: waiting for sessions directory: {}",
+                    sessions_dir.display()
+                );
+                logged_missing_sessions_dir = true;
+            }
+            thread::sleep(RECONCILE_INTERVAL);
+            continue;
+        }
+        logged_missing_sessions_dir = false;
+
         if let Err(err) = reconcile_once(&store, &sessions_dir) {
             eprintln!("codex-token-monitor: reconciliation failed: {err}");
         }
         thread::sleep(RECONCILE_INTERVAL);
     }
+}
+
+fn sessions_dir_ready(sessions_dir: &Path) -> bool {
+    sessions_dir.is_dir()
 }
 
 fn reconcile_once(store: &UsageStore, sessions_dir: &Path) -> Result<(), String> {
@@ -197,4 +207,27 @@ fn collect_recent_jsonl_files_inner(
 
 fn system_time_to_rfc3339(time: SystemTime) -> String {
     DateTime::<Utc>::from(time).to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sessions_dir_ready_tracks_directory_creation() {
+        let dir = std::env::temp_dir().join(format!(
+            "codex-token-monitor-missing-sessions-{}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        assert!(!sessions_dir_ready(&dir));
+
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(sessions_dir_ready(&dir));
+
+        let _ = std::fs::remove_dir(&dir);
+    }
 }
