@@ -37,6 +37,16 @@ pub struct TimeBucket {
     pub session_count: i64,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct TurnDetail {
+    pub timestamp: String,
+    pub total_tokens: i64,
+    pub input_tokens: i64,
+    pub cached_input_tokens: i64,
+    pub output_tokens: i64,
+    pub reasoning_output_tokens: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct DashboardSummary {
     pub today_total_tokens: i64,
@@ -145,6 +155,32 @@ impl UsageStore {
         .execute(&self.pool)
         .await?;
 
+        sqlx::query(
+            r#"
+            create table if not exists daily_sessions (
+              bucket text not null,
+              session_id text not null,
+              primary key (bucket, session_id)
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            create table if not exists daily_buckets (
+              bucket text primary key,
+              total_tokens integer not null default 0,
+              input_tokens integer not null default 0,
+              output_tokens integer not null default 0,
+              session_count integer not null default 0
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
         Ok(())
     }
 
@@ -155,7 +191,8 @@ impl UsageStore {
         event: TokenCountEvent,
     ) -> Result<(), sqlx::Error> {
         let event_timestamp = parse_timestamp_utc(&event.timestamp)?;
-        let bucket = hour_bucket_from_datetime(event_timestamp);
+        let hour_bucket = hour_bucket_from_datetime(event_timestamp);
+        let day_bucket = day_bucket_from_datetime(event_timestamp);
         let event_timestamp = event_timestamp.to_rfc3339_opts(SecondsFormat::Secs, true);
         let mut tx = self.pool.begin().await?;
 
@@ -214,7 +251,7 @@ impl UsageStore {
             on conflict(bucket, session_id) do nothing
             "#,
         )
-        .bind(&bucket)
+        .bind(&hour_bucket)
         .bind(session_id)
         .execute(&mut *tx)
         .await?
@@ -233,11 +270,45 @@ impl UsageStore {
               session_count = hourly_buckets.session_count + excluded.session_count
             "#,
         )
-        .bind(bucket)
+        .bind(hour_bucket)
         .bind(event.total_tokens)
         .bind(event.input_tokens)
         .bind(event.output_tokens)
         .bind(session_delta)
+        .execute(&mut *tx)
+        .await?;
+
+        let daily_session_delta = sqlx::query(
+            r#"
+            insert into daily_sessions (bucket, session_id)
+            values (?1, ?2)
+            on conflict(bucket, session_id) do nothing
+            "#,
+        )
+        .bind(&day_bucket)
+        .bind(session_id)
+        .execute(&mut *tx)
+        .await?
+        .rows_affected() as i64;
+
+        sqlx::query(
+            r#"
+            insert into daily_buckets (
+              bucket, total_tokens, input_tokens, output_tokens, session_count
+            )
+            values (?1, ?2, ?3, ?4, ?5)
+            on conflict(bucket) do update set
+              total_tokens = daily_buckets.total_tokens + excluded.total_tokens,
+              input_tokens = daily_buckets.input_tokens + excluded.input_tokens,
+              output_tokens = daily_buckets.output_tokens + excluded.output_tokens,
+              session_count = daily_buckets.session_count + excluded.session_count
+            "#,
+        )
+        .bind(day_bucket)
+        .bind(event.total_tokens)
+        .bind(event.input_tokens)
+        .bind(event.output_tokens)
+        .bind(daily_session_delta)
         .execute(&mut *tx)
         .await?;
 
@@ -266,6 +337,33 @@ impl UsageStore {
             order by bucket asc
             "#,
         )
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    pub async fn daily_totals(&self) -> Result<Vec<TimeBucket>, sqlx::Error> {
+        sqlx::query_as::<_, TimeBucket>(
+            r#"
+            select bucket, total_tokens, input_tokens, output_tokens, session_count
+            from daily_buckets
+            order by bucket asc
+            "#,
+        )
+        .fetch_all(&self.pool)
+        .await
+    }
+
+    pub async fn session_turns(&self, session_id: &str) -> Result<Vec<TurnDetail>, sqlx::Error> {
+        sqlx::query_as::<_, TurnDetail>(
+            r#"
+            select timestamp, total_tokens, input_tokens, cached_input_tokens,
+                   output_tokens, reasoning_output_tokens
+            from token_events
+            where session_id = ?1
+            order by timestamp asc
+            "#,
+        )
+        .bind(session_id)
         .fetch_all(&self.pool)
         .await
     }
@@ -333,6 +431,10 @@ fn hour_bucket_from_datetime(timestamp: DateTime<Utc>) -> String {
         .and_then(|dt| dt.with_nanosecond(0))
         .expect("zeroed hour timestamp should be valid")
         .to_rfc3339_opts(SecondsFormat::Secs, true)
+}
+
+fn day_bucket_from_datetime(timestamp: DateTime<Utc>) -> String {
+    timestamp.date_naive().format("%Y-%m-%d").to_string()
 }
 
 fn day_start(timestamp: DateTime<Utc>) -> String {

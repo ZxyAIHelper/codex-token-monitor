@@ -58,6 +58,8 @@ async fn store_tests_rejects_invalid_timestamp_without_writing_aggregates() {
     assert!(err.to_string().contains("invalid token timestamp"));
     assert!(store.sessions().await.unwrap().is_empty());
     assert!(store.hourly_totals().await.unwrap().is_empty());
+    assert!(store.daily_totals().await.unwrap().is_empty());
+    assert!(store.session_turns("session-a").await.unwrap().is_empty());
 }
 
 #[tokio::test]
