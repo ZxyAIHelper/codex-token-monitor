@@ -103,6 +103,24 @@ impl UsageStore {
 
         sqlx::query(
             r#"
+            create table if not exists token_events (
+              id integer primary key autoincrement,
+              session_id text not null,
+              path text not null,
+              timestamp text not null,
+              total_tokens integer not null default 0,
+              input_tokens integer not null default 0,
+              cached_input_tokens integer not null default 0,
+              output_tokens integer not null default 0,
+              reasoning_output_tokens integer not null default 0
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
             create table if not exists hourly_sessions (
               bucket text not null,
               session_id text not null,
@@ -136,7 +154,9 @@ impl UsageStore {
         path: &str,
         event: TokenCountEvent,
     ) -> Result<(), sqlx::Error> {
-        let bucket = hour_bucket(&event.timestamp)?;
+        let event_timestamp = parse_timestamp_utc(&event.timestamp)?;
+        let bucket = hour_bucket_from_datetime(event_timestamp);
+        let event_timestamp = event_timestamp.to_rfc3339_opts(SecondsFormat::Secs, true);
         let mut tx = self.pool.begin().await?;
 
         sqlx::query(
@@ -163,7 +183,27 @@ impl UsageStore {
         .bind(event.cached_input_tokens)
         .bind(event.output_tokens)
         .bind(event.reasoning_output_tokens)
-        .bind(&event.timestamp)
+        .bind(&event_timestamp)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            r#"
+            insert into token_events (
+              session_id, path, timestamp, total_tokens, input_tokens,
+              cached_input_tokens, output_tokens, reasoning_output_tokens
+            )
+            values (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            "#,
+        )
+        .bind(session_id)
+        .bind(path)
+        .bind(&event_timestamp)
+        .bind(event.total_tokens)
+        .bind(event.input_tokens)
+        .bind(event.cached_input_tokens)
+        .bind(event.output_tokens)
+        .bind(event.reasoning_output_tokens)
         .execute(&mut *tx)
         .await?;
 
@@ -240,18 +280,20 @@ impl UsageStore {
     ) -> Result<DashboardSummary, sqlx::Error> {
         let current_hour = hour_bucket_from_datetime(now);
         let today_start = day_start(now);
-        let last_five_hours_start = hour_bucket_from_datetime(now - Duration::hours(4));
+        let last_hour_start = (now - Duration::hours(1)).to_rfc3339_opts(SecondsFormat::Secs, true);
+        let last_five_hours_start =
+            (now - Duration::hours(5)).to_rfc3339_opts(SecondsFormat::Secs, true);
         let now_rfc3339 = now.to_rfc3339_opts(SecondsFormat::Secs, true);
 
         let today_total_tokens = sum_hourly_tokens(&self.pool, &today_start, &current_hour).await?;
-        let last_hour_tokens = sum_hourly_tokens(&self.pool, &current_hour, &current_hour).await?;
+        let last_hour_tokens = sum_event_tokens(&self.pool, &last_hour_start, &now_rfc3339).await?;
         let last_five_hours_tokens =
-            sum_hourly_tokens(&self.pool, &last_five_hours_start, &current_hour).await?;
+            sum_event_tokens(&self.pool, &last_five_hours_start, &now_rfc3339).await?;
         let active_session_count = sqlx::query_scalar::<_, i64>(
             r#"
-            select count(*)
-            from sessions
-            where last_seen_at >= ?1 and last_seen_at <= ?2
+            select count(distinct session_id)
+            from token_events
+            where timestamp >= ?1 and timestamp <= ?2
             "#,
         )
         .bind(&last_five_hours_start)
@@ -278,12 +320,10 @@ impl UsageStore {
     }
 }
 
-fn hour_bucket(timestamp: &str) -> Result<String, sqlx::Error> {
-    let parsed = DateTime::parse_from_rfc3339(timestamp)
+fn parse_timestamp_utc(timestamp: &str) -> Result<DateTime<Utc>, sqlx::Error> {
+    DateTime::parse_from_rfc3339(timestamp)
         .map(|dt| dt.with_timezone(&Utc))
-        .map_err(|err| sqlx::Error::Protocol(format!("invalid token timestamp: {err}")))?;
-
-    Ok(hour_bucket_from_datetime(parsed))
+        .map_err(|err| sqlx::Error::Protocol(format!("invalid token timestamp: {err}")))
 }
 
 fn hour_bucket_from_datetime(timestamp: DateTime<Utc>) -> String {
@@ -320,6 +360,24 @@ async fn sum_hourly_tokens(
     )
     .bind(start_bucket)
     .bind(end_bucket)
+    .fetch_one(pool)
+    .await
+}
+
+async fn sum_event_tokens(
+    pool: &SqlitePool,
+    start_timestamp: &str,
+    end_timestamp: &str,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar::<_, i64>(
+        r#"
+        select coalesce(sum(total_tokens), 0)
+        from token_events
+        where timestamp >= ?1 and timestamp <= ?2
+        "#,
+    )
+    .bind(start_timestamp)
+    .bind(end_timestamp)
     .fetch_one(pool)
     .await
 }

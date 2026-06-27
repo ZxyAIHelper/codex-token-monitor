@@ -122,8 +122,38 @@ async fn store_tests_dashboard_summary_uses_inserted_token_events() {
         .unwrap();
     store
         .record_token_count(
-            "session-b",
-            "C:/tmp/session-b.jsonl",
+            "session-cross-hour",
+            "C:/tmp/session-cross-hour.jsonl",
+            TokenCountEvent {
+                timestamp: "2026-06-27T11:50:00Z".to_string(),
+                input_tokens: 60,
+                cached_input_tokens: 0,
+                output_tokens: 10,
+                reasoning_output_tokens: 0,
+                total_tokens: 70,
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .record_token_count(
+            "session-before-hour",
+            "C:/tmp/session-before-hour.jsonl",
+            TokenCountEvent {
+                timestamp: "2026-06-27T11:44:00Z".to_string(),
+                input_tokens: 50,
+                cached_input_tokens: 0,
+                output_tokens: 10,
+                reasoning_output_tokens: 0,
+                total_tokens: 60,
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .record_token_count(
+            "session-five-hour",
+            "C:/tmp/session-five-hour.jsonl",
             TokenCountEvent {
                 timestamp: "2026-06-27T08:15:00Z".to_string(),
                 input_tokens: 40,
@@ -131,6 +161,21 @@ async fn store_tests_dashboard_summary_uses_inserted_token_events() {
                 output_tokens: 10,
                 reasoning_output_tokens: 0,
                 total_tokens: 50,
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .record_token_count(
+            "session-before-five-hours",
+            "C:/tmp/session-before-five-hours.jsonl",
+            TokenCountEvent {
+                timestamp: "2026-06-27T06:30:00Z".to_string(),
+                input_tokens: 20,
+                cached_input_tokens: 0,
+                output_tokens: 5,
+                reasoning_output_tokens: 0,
+                total_tokens: 25,
             },
         )
         .await
@@ -153,12 +198,12 @@ async fn store_tests_dashboard_summary_uses_inserted_token_events() {
 
     let summary = store.dashboard_summary_at(now).await.unwrap();
 
-    assert_eq!(summary.today_total_tokens, 180);
-    assert_eq!(summary.last_hour_tokens, 130);
-    assert_eq!(summary.last_five_hours_tokens, 180);
-    assert_eq!(summary.active_session_count, 2);
-    assert_eq!(summary.input_tokens, 1139);
-    assert_eq!(summary.output_tokens, 41);
+    assert_eq!(summary.today_total_tokens, 335);
+    assert_eq!(summary.last_hour_tokens, 200);
+    assert_eq!(summary.last_five_hours_tokens, 310);
+    assert_eq!(summary.active_session_count, 4);
+    assert_eq!(summary.input_tokens, 1269);
+    assert_eq!(summary.output_tokens, 66);
 }
 
 fn token_event(timestamp: &str, total_tokens: i64) -> TokenCountEvent {
