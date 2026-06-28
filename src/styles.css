@@ -622,6 +622,35 @@ tbody tr:hover {
   padding-right: 2px;
 }
 
+.request-sort-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.request-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid #26384a;
+  border-radius: 6px;
+  background: #101a25;
+  color: #91a5b8;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.request-sort-button:hover,
+.request-sort-button:focus-visible,
+.request-sort-button-active {
+  border-color: #58c7f3;
+  color: #e4eef8;
+  outline: none;
+}
+
 .request-item {
   min-width: 0;
   border: 1px solid #223244;
@@ -671,8 +700,10 @@ tbody tr:hover {
 
 .request-metrics {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
+  max-width: 680px;
 }
 
 .request-item .message-list {

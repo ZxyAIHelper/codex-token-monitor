@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { Translator } from "../i18n";
 import { sessionDisplayTitle } from "../sessionTitles";
 import type { MessageDetail, ModelRequestDetail, SessionSummary, TurnDetail } from "../types";
@@ -12,6 +13,25 @@ interface SessionDetailProps {
 }
 
 const numberFormatter = new Intl.NumberFormat("en");
+
+type RequestSortDirection = "asc" | "desc";
+type RequestSortKey = "time" | "total" | "input" | "output" | "cache" | "developer" | "user" | "tool";
+
+interface RequestSortState {
+  key: RequestSortKey;
+  direction: RequestSortDirection;
+}
+
+const requestSortLabels: Record<RequestSortKey, string> = {
+  time: "Time",
+  total: "Total",
+  input: "Input",
+  output: "Output",
+  cache: "Cache",
+  developer: "Developer",
+  user: "User",
+  tool: "Tool",
+};
 
 function formatNumber(value: number): string {
   return numberFormatter.format(value);
@@ -46,7 +66,46 @@ function renderMetric(label: string, value: number) {
   );
 }
 
-function RequestMetrics({ turn, t }: { turn: TurnDetail; t: Translator }) {
+function countRole(messages: MessageDetail[], role: string): number {
+  return messages.filter((message) => message.role.toLowerCase() === role).length;
+}
+
+function requestSortValue(request: ModelRequestDetail, key: RequestSortKey): number {
+  switch (key) {
+    case "time":
+      return Date.parse(request.turn.timestamp) || 0;
+    case "total":
+      return request.turn.total_tokens;
+    case "input":
+      return request.turn.input_tokens;
+    case "output":
+      return request.turn.output_tokens;
+    case "cache":
+      return request.turn.cached_input_tokens;
+    case "developer":
+      return countRole(request.messages, "developer");
+    case "user":
+      return countRole(request.messages, "user");
+    case "tool":
+      return countRole(request.messages, "tool");
+  }
+}
+
+function compareRequests(a: ModelRequestDetail, b: ModelRequestDetail, sort: RequestSortState): number {
+  const multiplier = sort.direction === "asc" ? 1 : -1;
+  const byMetric = (requestSortValue(a, sort.key) - requestSortValue(b, sort.key)) * multiplier;
+  if (byMetric !== 0) {
+    return byMetric;
+  }
+  return a.request_index - b.request_index;
+}
+
+function RequestMetrics({ request, t }: { request: ModelRequestDetail; t: Translator }) {
+  const { turn, messages } = request;
+  const developerCount = countRole(messages, "developer");
+  const userCount = countRole(messages, "user");
+  const toolCount = countRole(messages, "tool");
+
   return (
     <div className="request-metrics">
       <span>
@@ -58,6 +117,12 @@ function RequestMetrics({ turn, t }: { turn: TurnDetail; t: Translator }) {
       <span>
         {t("columns.output")}: {formatNumber(turn.output_tokens)}
       </span>
+      <span>
+        {t("detail.cached")}: {formatNumber(turn.cached_input_tokens)}
+      </span>
+      <span>Developer: {formatNumber(developerCount)}</span>
+      <span>User: {formatNumber(userCount)}</span>
+      <span>Tool: {formatNumber(toolCount)}</span>
     </div>
   );
 }
@@ -83,6 +148,23 @@ function MessageList({ messages, t }: { messages: MessageDetail[]; t: Translator
 }
 
 export function SessionDetail({ session, requests, isLoading, error, onBack, t }: SessionDetailProps) {
+  const [requestSort, setRequestSort] = useState<RequestSortState>({ key: "time", direction: "asc" });
+  const orderedRequests = useMemo(
+    () => [...requests].sort((a, b) => compareRequests(a, b, requestSort)),
+    [requests, requestSort],
+  );
+  const requestSortSummary = t("sessions.sortedBy", {
+    label: requestSortLabels[requestSort.key],
+    direction: requestSort.direction === "desc" ? t("sessions.desc") : t("sessions.asc"),
+  });
+
+  const setRequestSortKey = (key: RequestSortKey) => {
+    setRequestSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === "desc" ? "asc" : "desc",
+    }));
+  };
+
   return (
     <section className="detail-view">
       <button className="back-button" type="button" onClick={onBack}>
@@ -112,7 +194,7 @@ export function SessionDetail({ session, requests, isLoading, error, onBack, t }
         <div className="panel-header">
           <div>
             <h2>{t("detail.modelRequests")}</h2>
-            <p>{t("detail.modelRequestsSubtitle")}</p>
+            <p>{requestSortSummary}</p>
           </div>
           <span className="panel-count">{requests.length}</span>
         </div>
@@ -120,20 +202,38 @@ export function SessionDetail({ session, requests, isLoading, error, onBack, t }
         {!isLoading && requests.length === 0 ? (
           <div className="empty-state">{t("detail.noModelRequests")}</div>
         ) : (
-          <div className="request-list">
-            {requests.map((request) => (
-              <details className="request-item" key={request.request_index} open={request.request_index === 1}>
-                <summary>
-                  <div className="request-title">
-                    <strong>{t("detail.requestLabel", { index: request.request_index })}</strong>
-                    <time title={request.turn.timestamp}>{formatTimestamp(request.turn.timestamp)}</time>
-                  </div>
-                  <RequestMetrics turn={request.turn} t={t} />
-                </summary>
-                <MessageList messages={request.messages} t={t} />
-              </details>
-            ))}
-          </div>
+          <>
+            <div className="request-sort-bar" aria-label="Sort model requests">
+              {(Object.keys(requestSortLabels) as RequestSortKey[]).map((key) => {
+                const isActive = requestSort.key === key;
+                return (
+                  <button
+                    type="button"
+                    className={`request-sort-button${isActive ? " request-sort-button-active" : ""}`}
+                    onClick={() => setRequestSortKey(key)}
+                    key={key}
+                  >
+                    <span>{requestSortLabels[key]}</span>
+                    <span>{isActive ? (requestSort.direction === "desc" ? "v" : "^") : "-"}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="request-list">
+              {orderedRequests.map((request) => (
+                <details className="request-item" key={request.request_index} open={request.request_index === 1}>
+                  <summary>
+                    <div className="request-title">
+                      <strong>{t("detail.requestLabel", { index: request.request_index })}</strong>
+                      <time title={request.turn.timestamp}>{formatTimestamp(request.turn.timestamp)}</time>
+                    </div>
+                    <RequestMetrics request={request} t={t} />
+                  </summary>
+                  <MessageList messages={request.messages} t={t} />
+                </details>
+              ))}
+            </div>
+          </>
         )}
       </section>
     </section>
