@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <defs>
+    <linearGradient id="wallpaper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#6bb7ff"/>
+      <stop offset="0.38" stop-color="#183859"/>
+      <stop offset="0.68" stop-color="#0b1724"/>
+      <stop offset="1" stop-color="#356b9b"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="5" stdDeviation="8" flood-color="#000" flood-opacity="0.32"/>
+    </filter>
+    <filter id="closeShadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.34"/>
+    </filter>
+    <style>
+      .panel-title { font: 600 18px "Segoe UI", Arial, sans-serif; fill: #eaf2fb; }
+      .panel-note { font: 12px "Segoe UI", Arial, sans-serif; fill: #aebdca; }
+      .metric-label { font: 10px "Segoe UI", Arial, sans-serif; fill: #99a8b5; }
+      .metric-value { font: 700 12px "Segoe UI", Arial, sans-serif; fill: #f7fbff; }
+      .drag-dot { fill: #8592a0; opacity: .45; }
+      .live-dot { fill: #32d583; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="760" fill="#09111b"/>
+
+  <g transform="translate(40 42)">
+    <text class="panel-title" x="0" y="0">Status island visual options</text>
+    <text class="panel-note" x="0" y="24">All variants remove the inner border and keep a top-edge notch feel.</text>
+  </g>
+
+  <!-- Panel 1 -->
+  <g transform="translate(40 95)">
+    <rect width="580" height="285" rx="18" fill="#0f1723"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="url(#wallpaper)"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="#000" opacity=".08"/>
+    <path d="M188 42 H392 C410 42 424 56 424 74 C424 91 410 104 392 104 H188 C170 104 156 91 156 74 C156 56 170 42 188 42Z"
+          fill="#05080c" filter="url(#softShadow)"/>
+    <g transform="translate(174 61)">
+      <circle class="drag-dot" cx="0" cy="4" r="1.2"/><circle class="drag-dot" cx="0" cy="11" r="1.2"/>
+      <circle class="drag-dot" cx="5" cy="4" r="1.2"/><circle class="drag-dot" cx="5" cy="11" r="1.2"/>
+      <circle class="live-dot" cx="24" cy="8" r="4"/>
+      <text class="metric-label" x="44" y="11">Today</text><text class="metric-value" x="78" y="11">42.2M</text>
+      <text class="metric-label" x="140" y="11">1h</text><text class="metric-value" x="160" y="11">2.4M</text>
+      <text class="metric-label" x="222" y="11">Sessions</text><text class="metric-value" x="272" y="11">1</text>
+    </g>
+    <text class="panel-title" x="22" y="26">A1: Soft floating notch</text>
+    <text class="panel-note" x="22" y="272">Most rounded. Slightly detached from top by only its curvature.</text>
+  </g>
+
+  <!-- Panel 2 -->
+  <g transform="translate(660 95)">
+    <rect width="580" height="285" rx="18" fill="#0f1723"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="url(#wallpaper)"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="#000" opacity=".08"/>
+    <path d="M178 42 H402 C420 42 434 55 434 72 C434 89 420 101 402 101 H178 C160 101 146 89 146 72 C146 55 160 42 178 42Z"
+          fill="#05080c" filter="url(#closeShadow)"/>
+    <path d="M146 42 C155 50 164 54 178 54 H402 C416 54 425 50 434 42" fill="none" stroke="#151d28" stroke-width="1" opacity=".8"/>
+    <g transform="translate(164 58)">
+      <circle class="drag-dot" cx="0" cy="4" r="1.1"/><circle class="drag-dot" cx="0" cy="10" r="1.1"/>
+      <circle class="drag-dot" cx="5" cy="4" r="1.1"/><circle class="drag-dot" cx="5" cy="10" r="1.1"/>
+      <circle class="live-dot" cx="24" cy="7" r="3.7"/>
+      <text class="metric-label" x="43" y="10">Today</text><text class="metric-value" x="76" y="10">42.2M</text>
+      <text class="metric-label" x="138" y="10">1h</text><text class="metric-value" x="158" y="10">2.4M</text>
+      <text class="metric-label" x="218" y="10">Sessions</text><text class="metric-value" x="268" y="10">1</text>
+    </g>
+    <text class="panel-title" x="22" y="26">A2: Screen-cut notch</text>
+    <text class="panel-note" x="22" y="272">Top blends into screen edge, bottom stays smoothly curved.</text>
+  </g>
+
+  <!-- Panel 3 -->
+  <g transform="translate(40 420)">
+    <rect width="580" height="285" rx="18" fill="#0f1723"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="url(#wallpaper)"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="#000" opacity=".08"/>
+    <path d="M204 42 H376 C391 42 402 52 402 66 C402 80 391 90 376 90 H204 C189 90 178 80 178 66 C178 52 189 42 204 42Z"
+          fill="#05080c" filter="url(#closeShadow)"/>
+    <g transform="translate(196 56)">
+      <circle class="live-dot" cx="0" cy="10" r="4"/>
+      <text class="metric-label" x="18" y="13">Today</text><text class="metric-value" x="52" y="13">42.2M</text>
+      <text class="metric-label" x="116" y="13">1h</text><text class="metric-value" x="136" y="13">2.4M</text>
+    </g>
+    <text class="panel-title" x="22" y="26">A3: Ultra compact</text>
+    <text class="panel-note" x="22" y="272">Lowest visual height. Drops session count for a cleaner notch.</text>
+  </g>
+
+  <!-- Panel 4 -->
+  <g transform="translate(660 420)">
+    <rect width="580" height="285" rx="18" fill="#0f1723"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="url(#wallpaper)"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="#000" opacity=".08"/>
+    <path d="M164 42 H416 C433 42 446 55 446 71 C446 88 433 101 416 101 H164 C147 101 134 88 134 71 C134 55 147 42 164 42Z"
+          fill="#05080c" filter="url(#softShadow)"/>
+    <path d="M164 43 H416" stroke="#000" stroke-width="2" opacity=".25"/>
+    <g transform="translate(154 59)">
+      <circle class="drag-dot" cx="0" cy="4" r="1.1"/><circle class="drag-dot" cx="0" cy="10" r="1.1"/>
+      <circle class="drag-dot" cx="5" cy="4" r="1.1"/><circle class="drag-dot" cx="5" cy="10" r="1.1"/>
+      <circle class="live-dot" cx="26" cy="7" r="3.8"/>
+      <text class="metric-label" x="46" y="10">Today</text><text class="metric-value" x="80" y="10">42.2M</text>
+      <text class="metric-label" x="144" y="10">1h</text><text class="metric-value" x="164" y="10">2.4M</text>
+      <text class="metric-label" x="226" y="10">Sessions</text><text class="metric-value" x="276" y="10">1</text>
+    </g>
+    <text class="panel-title" x="22" y="26">A4: Wide soft notch</text>
+    <text class="panel-note" x="22" y="272">More breathing room, smoother shoulders, still no visible border.</text>
+  </g>
+</svg>

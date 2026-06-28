@@ -7,7 +7,15 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "outDir": ".test-dist"
+    "outDir": ".test-dist",
+    "jsx": "react-jsx"
   },
-  "include": ["src/i18n.ts", "src/sessionTitles.ts", "src/statusIslandDock.ts", "src/types.ts", "tests/**/*.ts"]
+  "include": [
+    "src/components/AlertList.tsx",
+    "src/i18n.ts",
+    "src/sessionTitles.ts",
+    "src/statusIslandDock.ts",
+    "src/types.ts",
+    "tests/**/*.ts"
+  ]
 }

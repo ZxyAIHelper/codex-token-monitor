@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <defs>
+    <linearGradient id="wallpaper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#79c4ff"/>
+      <stop offset="0.34" stop-color="#1d4164"/>
+      <stop offset="0.66" stop-color="#0a1522"/>
+      <stop offset="1" stop-color="#356a96"/>
+    </linearGradient>
+    <filter id="softShadow" x="-25%" y="-20%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.30"/>
+    </filter>
+    <filter id="tightShadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.34"/>
+    </filter>
+    <style>
+      .panel-title { font: 600 18px "Segoe UI", Arial, sans-serif; fill: #eaf2fb; }
+      .panel-note { font: 12px "Segoe UI", Arial, sans-serif; fill: #aebdca; }
+      .label { font: 8px "Segoe UI", Arial, sans-serif; fill: #98a7b5; }
+      .value { font: 700 10.5px "Segoe UI", Arial, sans-serif; fill: #f7fbff; }
+      .tiny { font: 700 10px "Segoe UI", Arial, sans-serif; fill: #f7fbff; }
+      .drag-dot { fill: #8794a2; opacity: .38; }
+      .live-dot { fill: #32d583; }
+    </style>
+  </defs>
+
+  <rect width="1280" height="760" fill="#09111b"/>
+  <g transform="translate(40 42)">
+    <text class="panel-title" x="0" y="0">Flat-top notch options</text>
+    <text class="panel-note" x="0" y="24">Top edge is straight and flush with the screen; only the lower edge is curved.</text>
+  </g>
+
+  <!-- B1 -->
+  <g transform="translate(40 95)">
+    <rect width="580" height="285" rx="18" fill="#0f1723"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="url(#wallpaper)"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="#000" opacity=".08"/>
+    <path d="M164 42 H416 V55 C416 70 404 82 389 82 H191 C176 82 164 70 164 55 Z"
+          fill="#05080c" filter="url(#tightShadow)"/>
+    <g transform="translate(179 54)">
+      <circle class="drag-dot" cx="0" cy="2" r="1"/><circle class="drag-dot" cx="0" cy="7" r="1"/>
+      <circle class="drag-dot" cx="4" cy="2" r="1"/><circle class="drag-dot" cx="4" cy="7" r="1"/>
+      <circle class="live-dot" cx="20" cy="5" r="3.2"/>
+      <text class="label" x="36" y="8">Today</text><text class="value" x="66" y="8">42.2M</text>
+      <text class="label" x="122" y="8">1h</text><text class="value" x="139" y="8">2.4M</text>
+      <text class="label" x="192" y="8">Sessions</text><text class="value" x="238" y="8">1</text>
+    </g>
+    <text class="panel-title" x="22" y="26">B1: Flat slim notch</text>
+    <text class="panel-note" x="22" y="272">Straight top, compact height, standard metric layout.</text>
+  </g>
+
+  <!-- B2 -->
+  <g transform="translate(660 95)">
+    <rect width="580" height="285" rx="18" fill="#0f1723"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="url(#wallpaper)"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="#000" opacity=".08"/>
+    <path d="M184 42 H396 V52 C396 66 385 78 371 78 H209 C195 78 184 66 184 52 Z"
+          fill="#05080c" filter="url(#tightShadow)"/>
+    <g transform="translate(199 52)">
+      <circle class="live-dot" cx="0" cy="6" r="3.2"/>
+      <text class="label" x="15" y="9">Today</text><text class="value" x="45" y="9">42.2M</text>
+      <text class="label" x="101" y="9">1h</text><text class="value" x="118" y="9">2.4M</text>
+      <text class="value" x="173" y="9">S1</text>
+    </g>
+    <text class="panel-title" x="22" y="26">B2: Ultra low</text>
+    <text class="panel-note" x="22" y="272">Lowest height. Abbreviates Sessions to S1.</text>
+  </g>
+
+  <!-- B3 -->
+  <g transform="translate(40 420)">
+    <rect width="580" height="285" rx="18" fill="#0f1723"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="url(#wallpaper)"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="#000" opacity=".08"/>
+    <path d="M154 42 H426 V54 C426 72 412 86 394 86 H186 C168 86 154 72 154 54 Z"
+          fill="#05080c" filter="url(#softShadow)"/>
+    <path d="M186 86 C218 94 362 94 394 86" fill="none" stroke="#0f1823" stroke-width="1" opacity=".75"/>
+    <g transform="translate(171 56)">
+      <circle class="drag-dot" cx="0" cy="2" r="1"/><circle class="drag-dot" cx="0" cy="7" r="1"/>
+      <circle class="drag-dot" cx="4" cy="2" r="1"/><circle class="drag-dot" cx="4" cy="7" r="1"/>
+      <circle class="live-dot" cx="20" cy="5" r="3.2"/>
+      <text class="label" x="36" y="8">Today</text><text class="value" x="66" y="8">42.2M</text>
+      <text class="label" x="126" y="8">1h</text><text class="value" x="143" y="8">2.4M</text>
+      <text class="label" x="204" y="8">Sessions</text><text class="value" x="250" y="8">1</text>
+    </g>
+    <text class="panel-title" x="22" y="26">B3: Soft lower arc</text>
+    <text class="panel-note" x="22" y="272">A smoother, deeper lower curve while staying flat on top.</text>
+  </g>
+
+  <!-- B4 -->
+  <g transform="translate(660 420)">
+    <rect width="580" height="285" rx="18" fill="#0f1723"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="url(#wallpaper)"/>
+    <rect x="18" y="42" width="544" height="210" rx="10" fill="#000" opacity=".08"/>
+    <path d="M196 42 H384 V53 C384 69 371 82 355 82 H225 C209 82 196 69 196 53 Z"
+          fill="#05080c" filter="url(#tightShadow)"/>
+    <g transform="translate(211 54)">
+      <circle class="live-dot" cx="0" cy="5" r="3.1"/>
+      <text class="tiny" x="15" y="8">42.2M</text>
+      <text class="label" x="66" y="8">1h</text><text class="tiny" x="82" y="8">2.4M</text>
+      <text class="label" x="136" y="8">S</text><text class="tiny" x="146" y="8">1</text>
+    </g>
+    <text class="panel-title" x="22" y="26">B4: Text-minimal</text>
+    <text class="panel-note" x="22" y="272">Most concise: values first, labels reduced.</text>
+  </g>
+</svg>

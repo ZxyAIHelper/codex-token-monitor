@@ -17,6 +17,24 @@ const kindKeys: Record<AlertKind, Parameters<Translator>[0]> = {
   HighHourlyUsage: "alerts.kind.HighHourlyUsage",
 };
 
+const thresholdItems: Array<{
+  labelKey: Parameters<Translator>[0];
+  valueKey: Parameters<Translator>[0];
+}> = [
+  {
+    labelKey: "alerts.threshold.session",
+    valueKey: "alerts.threshold.sessionValue",
+  },
+  {
+    labelKey: "alerts.threshold.hourly",
+    valueKey: "alerts.threshold.hourlyValue",
+  },
+  {
+    labelKey: "alerts.threshold.toolOutput",
+    valueKey: "alerts.threshold.toolOutputValue",
+  },
+];
+
 function formatTimestamp(timestamp: string) {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) {
@@ -40,6 +58,15 @@ export function AlertList({ alerts, t }: AlertListProps) {
         </div>
         <span className="panel-count">{alerts.length}</span>
       </div>
+
+      <ul className="threshold-list" aria-label={t("alerts.thresholdsAria")}>
+        {thresholdItems.map((item) => (
+          <li key={item.labelKey}>
+            <span>{t(item.labelKey)}</span>
+            <strong>{t(item.valueKey)}</strong>
+          </li>
+        ))}
+      </ul>
 
       {alerts.length === 0 ? (
         <div className="empty-state">{t("alerts.none")}</div>

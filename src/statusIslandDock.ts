@@ -24,6 +24,7 @@ interface DockPlacementInput {
   workArea: WorkArea;
   horizontalSize: BoxSize;
   sideSize: BoxSize;
+  topAnchorX?: number;
   margin?: number;
   threshold?: number;
 }
@@ -40,16 +41,18 @@ function calculateTopPosition({
   currentSize,
   workArea,
   horizontalSize,
+  topAnchorX,
   margin,
 }: {
   position: Point;
   currentSize: BoxSize;
   workArea: WorkArea;
   horizontalSize: BoxSize;
+  topAnchorX?: number;
   margin: number;
 }): Point {
   const rightEdge = workArea.x + workArea.width;
-  const draggedCenterX = position.x + currentSize.width / 2;
+  const draggedCenterX = topAnchorX ?? position.x + currentSize.width / 2;
 
   return {
     x: clamp(
@@ -67,6 +70,7 @@ export function calculateDockPlacement({
   workArea,
   horizontalSize,
   sideSize,
+  topAnchorX,
   margin = DEFAULT_MARGIN,
   threshold = DEFAULT_THRESHOLD,
 }: DockPlacementInput): DockPlacement {
@@ -80,7 +84,7 @@ export function calculateDockPlacement({
   if (distanceToTop <= threshold) {
     return {
       edge: "top",
-      position: calculateTopPosition({ position, currentSize, workArea, horizontalSize, margin }),
+      position: calculateTopPosition({ position, currentSize, workArea, horizontalSize, topAnchorX, margin }),
       size: horizontalSize,
     };
   }
@@ -109,7 +113,7 @@ export function calculateDockPlacement({
 
   return {
     edge: "top",
-    position: calculateTopPosition({ position, currentSize, workArea, horizontalSize, margin }),
+    position: calculateTopPosition({ position, currentSize, workArea, horizontalSize, topAnchorX, margin }),
     size: horizontalSize,
   };
 }

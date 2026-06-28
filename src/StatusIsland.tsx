@@ -35,6 +35,7 @@ export function StatusIsland() {
   const isSnappingRef = useRef(false);
   const dragStateRef = useRef<{
     pointerStart: { x: number; y: number };
+    lastPointer: { x: number; y: number };
     windowStart: { x: number; y: number };
     lastPosition: { x: number; y: number };
   } | null>(null);
@@ -87,7 +88,7 @@ export function StatusIsland() {
     };
   }, []);
 
-  const snapToNearestEdge = useCallback(async (position: { x: number; y: number }) => {
+  const snapToNearestEdge = useCallback(async (position: { x: number; y: number }, topAnchorX?: number) => {
     if (isSnappingRef.current) {
       return;
     }
@@ -110,6 +111,7 @@ export function StatusIsland() {
       },
       horizontalSize: HORIZONTAL_SIZE,
       sideSize: SIDE_SIZE,
+      topAnchorX,
     });
 
     isSnappingRef.current = true;
@@ -166,6 +168,7 @@ export function StatusIsland() {
     void appWindow.outerPosition().then((windowStart) => {
       dragStateRef.current = {
         pointerStart: point,
+        lastPointer: point,
         windowStart,
         lastPosition: windowStart,
       };
@@ -184,6 +187,7 @@ export function StatusIsland() {
         x: dragState.windowStart.x + Math.round(screenX - dragState.pointerStart.x),
         y: dragState.windowStart.y + Math.round(screenY - dragState.pointerStart.y),
       };
+      dragState.lastPointer = { x: screenX, y: screenY };
       dragState.lastPosition = nextPosition;
       void getCurrentWindow().setPosition(new PhysicalPosition(nextPosition.x, nextPosition.y));
     };
@@ -203,7 +207,7 @@ export function StatusIsland() {
       const dragState = dragStateRef.current;
       dragStateRef.current = null;
       if (dragState) {
-        void snapToNearestEdge(dragState.lastPosition);
+        void snapToNearestEdge(dragState.lastPosition, dragState.lastPointer.x);
       }
     };
 

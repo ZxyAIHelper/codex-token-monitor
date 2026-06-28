@@ -618,6 +618,37 @@ tbody tr:hover {
   font-size: 13px;
 }
 
+.threshold-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.threshold-list li {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #26394d;
+  border-radius: 8px;
+  background: #111a24;
+}
+
+.threshold-list span {
+  color: #8da3b7;
+  font-size: 11px;
+}
+
+.threshold-list strong {
+  overflow-wrap: anywhere;
+  color: #d8e8f6;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .alert-list {
   display: grid;
   gap: 8px;
@@ -693,6 +724,12 @@ tbody tr:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .threshold-list {
+    grid-template-columns: 1fr;
+  }
 }
 
 .detail-view {

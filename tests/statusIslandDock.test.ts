@@ -39,6 +39,23 @@ describe("status island docking", () => {
     });
   });
 
+  it("centers the top island on the drag pointer when changing from a side island", () => {
+    const placement = calculateDockPlacement({
+      position: { x: 900, y: 12 },
+      currentSize: sideSize,
+      workArea,
+      horizontalSize,
+      sideSize,
+      topAnchorX: 900,
+    });
+
+    assert.deepEqual(placement, {
+      edge: "top",
+      position: { x: 780, y: 0 },
+      size: horizontalSize,
+    });
+  });
+
   it("snaps near the left edge as a vertical side island", () => {
     const placement = calculateDockPlacement({
       position: { x: 20, y: 380 },

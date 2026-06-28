@@ -74,6 +74,13 @@ export type TranslationKey =
   | "role.unknown"
   | "alerts.title"
   | "alerts.subtitle"
+  | "alerts.thresholdsAria"
+  | "alerts.threshold.session"
+  | "alerts.threshold.sessionValue"
+  | "alerts.threshold.hourly"
+  | "alerts.threshold.hourlyValue"
+  | "alerts.threshold.toolOutput"
+  | "alerts.threshold.toolOutputValue"
   | "alerts.none"
   | "alerts.level.Warning"
   | "alerts.level.Critical"
@@ -159,6 +166,13 @@ const dictionaries: Record<Language, Record<TranslationKey, string>> = {
     "role.unknown": "unknown",
     "alerts.title": "Alerts",
     "alerts.subtitle": "Usage thresholds",
+    "alerts.thresholdsAria": "Alert usage thresholds",
+    "alerts.threshold.session": "Session usage",
+    "alerts.threshold.sessionValue": "3M / 10M tokens",
+    "alerts.threshold.hourly": "Hourly usage",
+    "alerts.threshold.hourlyValue": "1M / 3M tokens",
+    "alerts.threshold.toolOutput": "Tool output",
+    "alerts.threshold.toolOutputValue": "50 KB / 200 KB",
     "alerts.none": "No active alerts.",
     "alerts.level.Warning": "Warning",
     "alerts.level.Critical": "Critical",
@@ -240,6 +254,13 @@ const dictionaries: Record<Language, Record<TranslationKey, string>> = {
     "role.unknown": "未知",
     "alerts.title": "告警",
     "alerts.subtitle": "用量阈值",
+    "alerts.thresholdsAria": "告警用量阈值",
+    "alerts.threshold.session": "会话用量",
+    "alerts.threshold.sessionValue": "3M / 10M tokens",
+    "alerts.threshold.hourly": "小时用量",
+    "alerts.threshold.hourlyValue": "1M / 3M tokens",
+    "alerts.threshold.toolOutput": "工具输出",
+    "alerts.threshold.toolOutputValue": "50 KB / 200 KB",
     "alerts.none": "暂无活跃告警。",
     "alerts.level.Warning": "警告",
     "alerts.level.Critical": "严重",
