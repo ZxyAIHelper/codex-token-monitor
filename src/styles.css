@@ -171,6 +171,7 @@ select {
   display: grid;
   grid-template-columns: 6px max-content max-content max-content;
   align-items: center;
+  justify-content: center;
   column-gap: 8px;
   width: 100%;
   height: 100%;
