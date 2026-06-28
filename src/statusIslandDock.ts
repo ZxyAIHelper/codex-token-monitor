@@ -35,6 +35,32 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+function calculateTopPosition({
+  position,
+  currentSize,
+  workArea,
+  horizontalSize,
+  margin,
+}: {
+  position: Point;
+  currentSize: BoxSize;
+  workArea: WorkArea;
+  horizontalSize: BoxSize;
+  margin: number;
+}): Point {
+  const rightEdge = workArea.x + workArea.width;
+  const draggedCenterX = position.x + currentSize.width / 2;
+
+  return {
+    x: clamp(
+      Math.round(draggedCenterX - horizontalSize.width / 2),
+      workArea.x + margin,
+      rightEdge - horizontalSize.width - margin,
+    ),
+    y: workArea.y,
+  };
+}
+
 export function calculateDockPlacement({
   position,
   currentSize,
@@ -50,6 +76,14 @@ export function calculateDockPlacement({
   const distanceToTop = Math.abs(position.y - workArea.y);
   const distanceToLeft = Math.abs(position.x - workArea.x);
   const distanceToRight = Math.abs(rightEdge - windowRightEdge);
+
+  if (distanceToTop <= threshold) {
+    return {
+      edge: "top",
+      position: calculateTopPosition({ position, currentSize, workArea, horizontalSize, margin }),
+      size: horizontalSize,
+    };
+  }
 
   if (distanceToLeft <= threshold && distanceToLeft <= distanceToTop) {
     return {
@@ -75,14 +109,7 @@ export function calculateDockPlacement({
 
   return {
     edge: "top",
-    position: {
-      x: clamp(
-        workArea.x + Math.round((workArea.width - horizontalSize.width) / 2),
-        workArea.x + margin,
-        rightEdge - horizontalSize.width - margin,
-      ),
-      y: workArea.y + margin,
-    },
+    position: calculateTopPosition({ position, currentSize, workArea, horizontalSize, margin }),
     size: horizontalSize,
   };
 }

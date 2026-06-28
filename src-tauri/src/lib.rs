@@ -26,7 +26,7 @@ use usage_store::{DashboardSummary, SessionSummary, TimeBucket, TurnDetail, Usag
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const STATUS_ISLAND_WINDOW_LABEL: &str = "status-island";
-const STATUS_ISLAND_TOP_OFFSET: i32 = 8;
+const STATUS_ISLAND_TOP_OFFSET: i32 = 0;
 const TRAY_ID: &str = "codex-token-monitor";
 const TRAY_OPEN_DASHBOARD_ID: &str = "open-dashboard";
 const TRAY_TODAY_SUMMARY_ID: &str = "today-summary";

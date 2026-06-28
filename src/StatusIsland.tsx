@@ -6,8 +6,8 @@ import type { DashboardSummary } from "./types";
 
 const REFRESH_INTERVAL_MS = 5_000;
 const SNAP_DELAY_MS = 180;
-const HORIZONTAL_SIZE = { width: 360, height: 42 };
-const SIDE_SIZE = { width: 52, height: 150 };
+const HORIZONTAL_SIZE = { width: 240, height: 22 };
+const SIDE_SIZE = { width: 40, height: 112 };
 
 const emptySummary: DashboardSummary = {
   today_total_tokens: 0,
@@ -40,8 +40,11 @@ export function StatusIsland() {
   } | null>(null);
 
   useEffect(() => {
+    document.documentElement.classList.add("status-window-root");
     document.body.classList.add("status-window");
+    void getCurrentWindow().setSize(new PhysicalSize(HORIZONTAL_SIZE.width, HORIZONTAL_SIZE.height));
     return () => {
+      document.documentElement.classList.remove("status-window-root");
       document.body.classList.remove("status-window");
     };
   }, []);
@@ -224,44 +227,43 @@ export function StatusIsland() {
   }, []);
 
   return (
-    <main className={`status-island-shell status-island-${dockEdge}`} aria-label="Codex token status">
+    <main
+      className={`status-island status-island-${dockEdge}`}
+      aria-label="Codex token status"
+      data-tauri-drag-region
+      onMouseDown={handleStartDrag}
+      onTouchStart={handleStartDrag}
+    >
       <div
-        className={`status-island status-island-${dockEdge}`}
+        className="status-drag-grip"
+        role="button"
+        tabIndex={0}
+        aria-label="Move status island"
         data-tauri-drag-region
         onMouseDown={handleStartDrag}
         onTouchStart={handleStartDrag}
+      />
+      <button
+        className="status-island-content"
+        type="button"
+        onClick={handleToggleDashboard}
+        onMouseDown={(event) => event.stopPropagation()}
+        onTouchStart={(event) => event.stopPropagation()}
       >
-        <div
-          className="status-drag-grip"
-          role="button"
-          tabIndex={0}
-          aria-label="Move status island"
-          data-tauri-drag-region
-          onMouseDown={handleStartDrag}
-          onTouchStart={handleStartDrag}
-        />
-        <button
-          className="status-island-content"
-          type="button"
-          onClick={handleToggleDashboard}
-          onMouseDown={(event) => event.stopPropagation()}
-          onTouchStart={(event) => event.stopPropagation()}
-        >
-          <span className={isConnected ? "status-dot is-live" : "status-dot"} aria-hidden="true" />
-          <span className="status-metric">
-            <span className="status-label">Today</span>
-            <strong>{formatTokens(summary.today_total_tokens)}</strong>
-          </span>
-          <span className="status-metric">
-            <span className="status-label">1h</span>
-            <strong>{formatTokens(summary.last_hour_tokens)}</strong>
-          </span>
-          <span className="status-metric">
-            <span className="status-label">Sessions</span>
-            <strong>{summary.active_session_count}</strong>
-          </span>
-        </button>
-      </div>
+        <span className={isConnected ? "status-dot is-live" : "status-dot"} aria-hidden="true" />
+        <span className="status-metric">
+          <span className="status-label">Today</span>
+          <strong>{formatTokens(summary.today_total_tokens)}</strong>
+        </span>
+        <span className="status-metric">
+          <span className="status-label">1h</span>
+          <strong>{formatTokens(summary.last_hour_tokens)}</strong>
+        </span>
+        <span className="status-metric">
+          <span className="status-label">S</span>
+          <strong>{summary.active_session_count}</strong>
+        </span>
+      </button>
     </main>
   );
 }

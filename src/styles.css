@@ -20,6 +20,22 @@ body {
     #0d1117;
 }
 
+html.status-window-root {
+  background: transparent;
+}
+
+html.status-window-root,
+html.status-window-root body,
+html.status-window-root #root {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
 body.status-window {
   min-width: 0;
   min-height: 0;
@@ -113,31 +129,17 @@ select {
   box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.14);
 }
 
-.status-island-shell {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  width: 100vw;
-  height: 100vh;
-  padding: 3px;
-  overflow: hidden;
-  background: transparent;
-}
-
 .status-island {
   display: flex;
   align-items: stretch;
-  width: 100%;
-  max-width: 354px;
-  height: 34px;
+  width: 100vw;
+  max-width: none;
+  height: 100vh;
   overflow: hidden;
-  border: 1px solid rgba(116, 139, 163, 0.24);
-  border-radius: 999px;
-  background: rgba(10, 14, 20, 0.92);
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.36),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(18px);
+  border: 0;
+  border-radius: 0 0 16px 16px;
+  background: #05080c;
+  box-shadow: none;
   transition:
     border-radius 160ms ease,
     background 160ms ease;
@@ -145,16 +147,15 @@ select {
 
 .status-island:hover,
 .status-island:focus-within {
-  border-radius: 999px;
-  background: rgba(13, 19, 28, 0.96);
+  border-radius: 0 0 16px 16px;
+  background: #05080c;
 }
 
 .status-drag-grip {
-  flex: 0 0 18px;
+  flex: 0 0 8px;
   border: 0;
   cursor: grab;
-  background:
-    radial-gradient(circle, rgba(172, 187, 202, 0.58) 1px, transparent 1.5px) 6px 9px / 4px 6px repeat-y;
+  background: transparent;
 }
 
 .status-drag-grip:active {
@@ -168,12 +169,12 @@ select {
 
 .status-island-content {
   display: grid;
-  grid-template-columns: 10px repeat(3, minmax(54px, 1fr));
+  grid-template-columns: 6px max-content max-content max-content;
   align-items: center;
-  column-gap: 10px;
+  column-gap: 8px;
   width: 100%;
   min-width: 0;
-  padding: 4px 13px 4px 2px;
+  padding: 1px 10px 2px 0;
   border: 0;
   background: transparent;
   color: #e9f1f8;
@@ -186,15 +187,15 @@ select {
 }
 
 .status-island-content .status-dot {
-  width: 7px;
-  height: 7px;
+  width: 5px;
+  height: 5px;
   background: #6c7a88;
-  box-shadow: 0 0 0 3px rgba(108, 122, 136, 0.16);
+  box-shadow: 0 0 0 2px rgba(108, 122, 136, 0.16);
 }
 
 .status-island-content .status-dot.is-live {
   background: #32d583;
-  box-shadow: 0 0 0 3px rgba(50, 213, 131, 0.18);
+  box-shadow: 0 0 0 2px rgba(50, 213, 131, 0.18);
 }
 
 .status-metric {
@@ -207,7 +208,7 @@ select {
 
 .status-label {
   color: #91a3b3;
-  font-size: 10px;
+  font-size: 8px;
   line-height: 1;
   white-space: nowrap;
 }
@@ -216,7 +217,7 @@ select {
   min-width: 0;
   overflow: hidden;
   color: #f7fbff;
-  font-size: 13px;
+  font-size: 10.5px;
   line-height: 1.05;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -225,8 +226,8 @@ select {
 .status-island.status-island-left,
 .status-island.status-island-right {
   flex-direction: column;
-  max-width: 46px;
-  height: calc(100vh - 6px);
+  max-width: 36px;
+  height: calc(100vh - 4px);
   border-radius: 999px;
 }
 
@@ -234,26 +235,26 @@ select {
 .status-island.status-island-left:focus-within,
 .status-island.status-island-right:hover,
 .status-island.status-island-right:focus-within {
-  height: calc(100vh - 6px);
+  height: calc(100vh - 4px);
   border-radius: 999px;
 }
 
 .status-island.status-island-left .status-drag-grip,
 .status-island.status-island-right .status-drag-grip {
-  flex: 0 0 18px;
+  flex: 0 0 16px;
   width: 100%;
   background:
-    radial-gradient(circle, rgba(172, 187, 202, 0.58) 1px, transparent 1.5px) 12px 7px / 6px 4px repeat-x;
+    radial-gradient(circle, rgba(172, 187, 202, 0.58) 1px, transparent 1.5px) 10px 6px / 5px 4px repeat-x;
 }
 
 .status-island.status-island-left .status-island-content,
 .status-island.status-island-right .status-island-content {
   grid-template-columns: 1fr;
-  grid-template-rows: 8px repeat(3, minmax(28px, 1fr));
-  row-gap: 5px;
+  grid-template-rows: 7px repeat(3, minmax(24px, 1fr));
+  row-gap: 4px;
   justify-items: center;
   align-content: center;
-  padding: 5px 4px 8px;
+  padding: 4px 3px 7px;
   text-align: center;
 }
 
@@ -267,13 +268,13 @@ select {
 
 .status-island.status-island-left .status-label,
 .status-island.status-island-right .status-label {
-  font-size: 9px;
+  font-size: 8px;
 }
 
 .status-island.status-island-left .status-metric strong,
 .status-island.status-island-right .status-metric strong {
-  max-width: 38px;
-  font-size: 11px;
+  max-width: 34px;
+  font-size: 10px;
   text-align: center;
 }
 

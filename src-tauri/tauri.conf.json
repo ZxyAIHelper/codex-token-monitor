@@ -21,11 +21,13 @@
       {
         "label": "status-island",
         "title": "Codex Token Monitor Status",
-        "width": 360,
-        "height": 42,
+        "width": 240,
+        "height": 22,
         "resizable": false,
         "decorations": false,
         "transparent": true,
+        "backgroundColor": "#00000000",
+        "shadow": false,
         "alwaysOnTop": true,
         "skipTaskbar": true,
         "visible": true
