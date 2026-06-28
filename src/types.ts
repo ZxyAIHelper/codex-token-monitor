@@ -43,6 +43,18 @@ export interface TurnDetail {
   reasoning_output_tokens: number;
 }
 
+export interface MessageDetail {
+  timestamp: string;
+  role: string;
+  content: string;
+}
+
+export interface ModelRequestDetail {
+  request_index: number;
+  turn: TurnDetail;
+  messages: MessageDetail[];
+}
+
 export interface TimeBucket {
   bucket: string;
   total_tokens: number;

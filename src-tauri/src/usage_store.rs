@@ -823,6 +823,19 @@ impl UsageStore {
         .await
     }
 
+    pub async fn session_path(&self, session_id: &str) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar::<_, String>(
+            r#"
+            select path
+            from sessions
+            where session_id = ?1
+            "#,
+        )
+        .bind(session_id)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
     pub async fn dashboard_summary(&self) -> Result<DashboardSummary, sqlx::Error> {
         self.dashboard_summary_at(Utc::now()).await
     }

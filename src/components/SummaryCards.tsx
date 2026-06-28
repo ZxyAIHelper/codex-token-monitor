@@ -1,7 +1,9 @@
 import type { DashboardSummary } from "../types";
+import type { Translator } from "../i18n";
 
 interface SummaryCardsProps {
   summary: DashboardSummary | null;
+  t: Translator;
 }
 
 const emptySummary: DashboardSummary = {
@@ -19,19 +21,19 @@ function formatTokens(value: number): string {
   return numberFormat.format(value);
 }
 
-export function SummaryCards({ summary }: SummaryCardsProps) {
+export function SummaryCards({ summary, t }: SummaryCardsProps) {
   const data = summary ?? emptySummary;
   const cards = [
-    { label: "Today", value: formatTokens(data.today_total_tokens), meta: "tokens" },
-    { label: "Last hour", value: formatTokens(data.last_hour_tokens), meta: "tokens" },
-    { label: "Last 5h", value: formatTokens(data.last_five_hours_tokens), meta: "tokens" },
-    { label: "Active", value: data.active_session_count.toString(), meta: "sessions" },
-    { label: "Input", value: formatTokens(data.input_tokens), meta: "tokens" },
-    { label: "Output", value: formatTokens(data.output_tokens), meta: "tokens" },
+    { label: t("summary.today"), value: formatTokens(data.today_total_tokens), meta: t("unit.tokens") },
+    { label: t("summary.lastHour"), value: formatTokens(data.last_hour_tokens), meta: t("unit.tokens") },
+    { label: t("summary.lastFiveHours"), value: formatTokens(data.last_five_hours_tokens), meta: t("unit.tokens") },
+    { label: t("summary.active"), value: data.active_session_count.toString(), meta: t("unit.sessions") },
+    { label: t("summary.input"), value: formatTokens(data.input_tokens), meta: t("unit.tokens") },
+    { label: t("summary.output"), value: formatTokens(data.output_tokens), meta: t("unit.tokens") },
   ];
 
   return (
-    <section className="summary-grid" aria-label="Token summary">
+    <section className="summary-grid" aria-label={t("summary.aria")}>
       {cards.map((card) => (
         <article className="metric-card" key={card.label}>
           <div className="metric-label">{card.label}</div>

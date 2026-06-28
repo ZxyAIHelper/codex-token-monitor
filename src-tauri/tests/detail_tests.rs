@@ -1,4 +1,5 @@
-use codex_token_monitor_lib::codex_log::TokenCountEvent;
+use codex_token_monitor_lib::codex_log::{MessageDetail, TokenCountEvent};
+use codex_token_monitor_lib::session_detail::group_model_requests;
 use codex_token_monitor_lib::usage_store::UsageStore;
 
 #[tokio::test]
@@ -97,6 +98,34 @@ async fn detail_tests_daily_totals_use_utc_day_and_distinct_sessions() {
     assert_eq!(days[1].session_count, 2);
 }
 
+#[test]
+fn detail_tests_groups_messages_by_model_request_turn() {
+    let turns = vec![
+        turn("2026-06-27T12:10:00Z", 100),
+        turn("2026-06-27T12:20:00Z", 50),
+    ];
+    let messages = vec![
+        message("2026-06-27T12:09:00Z", "user", "first prompt"),
+        message("2026-06-27T12:10:00Z", "assistant", "first reply"),
+        message("2026-06-27T12:15:00Z", "user", "second prompt"),
+        message("2026-06-27T12:20:00Z", "assistant", "second reply"),
+        message("2026-06-27T12:21:00Z", "user", "not sent yet"),
+    ];
+
+    let requests = group_model_requests(turns, messages);
+
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].request_index, 1);
+    assert_eq!(requests[0].turn.total_tokens, 100);
+    assert_eq!(requests[0].messages.len(), 2);
+    assert_eq!(requests[0].messages[0].content, "first prompt");
+    assert_eq!(requests[0].messages[1].content, "first reply");
+    assert_eq!(requests[1].request_index, 2);
+    assert_eq!(requests[1].messages.len(), 2);
+    assert_eq!(requests[1].messages[0].content, "second prompt");
+    assert_eq!(requests[1].messages[1].content, "second reply");
+}
+
 fn token_event(
     timestamp: &str,
     total_tokens: i64,
@@ -111,5 +140,24 @@ fn token_event(
         output_tokens: total_tokens - input_tokens,
         reasoning_output_tokens,
         total_tokens,
+    }
+}
+
+fn turn(timestamp: &str, total_tokens: i64) -> codex_token_monitor_lib::usage_store::TurnDetail {
+    codex_token_monitor_lib::usage_store::TurnDetail {
+        timestamp: timestamp.to_string(),
+        total_tokens,
+        input_tokens: total_tokens,
+        cached_input_tokens: 0,
+        output_tokens: 0,
+        reasoning_output_tokens: 0,
+    }
+}
+
+fn message(timestamp: &str, role: &str, content: &str) -> MessageDetail {
+    MessageDetail {
+        timestamp: timestamp.to_string(),
+        role: role.to_string(),
+        content: content.to_string(),
     }
 }

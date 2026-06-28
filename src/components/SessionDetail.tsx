@@ -1,11 +1,14 @@
-import type { SessionSummary, TurnDetail } from "../types";
+import type { Translator } from "../i18n";
+import { sessionDisplayTitle } from "../sessionTitles";
+import type { MessageDetail, ModelRequestDetail, SessionSummary, TurnDetail } from "../types";
 
 interface SessionDetailProps {
   session: SessionSummary;
-  turns: TurnDetail[];
+  requests: ModelRequestDetail[];
   isLoading: boolean;
   error: string | null;
   onBack: () => void;
+  t: Translator;
 }
 
 const numberFormatter = new Intl.NumberFormat("en");
@@ -22,88 +25,114 @@ function formatTimestamp(timestamp: string): string {
   return date.toLocaleString();
 }
 
-function sessionTitle(session: SessionSummary): string {
-  return session.session_name || session.session_id;
+function roleClassName(role: string): string {
+  const normalized = role.toLowerCase();
+  if (["system", "developer", "user", "tool"].includes(normalized)) {
+    return `role-badge role-${normalized}`;
+  }
+  return "role-badge";
 }
 
-export function SessionDetail({ session, turns, isLoading, error, onBack }: SessionDetailProps) {
+function roleLabel(message: MessageDetail, t: Translator): string {
+  return message.role || t("role.unknown");
+}
+
+function renderMetric(label: string, value: number) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{formatNumber(value)}</strong>
+    </div>
+  );
+}
+
+function RequestMetrics({ turn, t }: { turn: TurnDetail; t: Translator }) {
+  return (
+    <div className="request-metrics">
+      <span>
+        {t("columns.total")}: {formatNumber(turn.total_tokens)}
+      </span>
+      <span>
+        {t("columns.input")}: {formatNumber(turn.input_tokens)}
+      </span>
+      <span>
+        {t("columns.output")}: {formatNumber(turn.output_tokens)}
+      </span>
+    </div>
+  );
+}
+
+function MessageList({ messages, t }: { messages: MessageDetail[]; t: Translator }) {
+  if (messages.length === 0) {
+    return <div className="empty-state empty-state-compact">{t("detail.noRequestMessages")}</div>;
+  }
+
+  return (
+    <div className="message-list">
+      {messages.map((message, index) => (
+        <article className="message-item" key={`${message.timestamp}-${message.role}-${index}`}>
+          <header>
+            <span className={roleClassName(message.role)}>{roleLabel(message, t)}</span>
+            <time title={message.timestamp}>{formatTimestamp(message.timestamp)}</time>
+          </header>
+          <pre>{message.content}</pre>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+export function SessionDetail({ session, requests, isLoading, error, onBack, t }: SessionDetailProps) {
   return (
     <section className="detail-view">
       <button className="back-button" type="button" onClick={onBack}>
-        返回
+        {t("detail.back")}
       </button>
 
       <section className="panel detail-header-panel">
         <div className="detail-title">
-          <h2 title={sessionTitle(session)}>{sessionTitle(session)}</h2>
-          <p title={session.cwd || "-"}>工作目录：{session.cwd || "-"}</p>
-          <p title={session.session_id}>Session ID：{session.session_id}</p>
-          <p title={session.path}>日志：{session.path}</p>
+          <h2 title={sessionDisplayTitle(session)}>{sessionDisplayTitle(session)}</h2>
+          <p title={session.cwd || "-"}>{`${t("detail.cwd")}: ${session.cwd || "-"}`}</p>
+          <p title={session.session_id}>{`${t("detail.sessionId")}: ${session.session_id}`}</p>
+          <p title={session.path}>{`${t("detail.log")}: ${session.path}`}</p>
         </div>
         <div className="detail-metrics">
-          <div>
-            <span>总量</span>
-            <strong>{formatNumber(session.total_tokens)}</strong>
-          </div>
-          <div>
-            <span>输入</span>
-            <strong>{formatNumber(session.input_tokens)}</strong>
-          </div>
-          <div>
-            <span>缓存输入</span>
-            <strong>{formatNumber(session.cached_input_tokens)}</strong>
-          </div>
-          <div>
-            <span>输出</span>
-            <strong>{formatNumber(session.output_tokens)}</strong>
-          </div>
-          <div>
-            <span>推理输出</span>
-            <strong>{formatNumber(session.reasoning_output_tokens)}</strong>
-          </div>
+          {renderMetric(t("columns.total"), session.total_tokens)}
+          {renderMetric(t("columns.input"), session.input_tokens)}
+          {renderMetric(t("detail.cachedInput"), session.cached_input_tokens)}
+          {renderMetric(t("columns.output"), session.output_tokens)}
+          {renderMetric(t("detail.reasoning"), session.reasoning_output_tokens)}
         </div>
       </section>
 
-      {error ? <div className="banner">无法加载会话明细：{error}</div> : null}
-      {isLoading ? <div className="banner banner-muted">正在加载会话明细...</div> : null}
+      {error ? <div className="banner">{t("detail.loadError", { error })}</div> : null}
+      {isLoading ? <div className="banner banner-muted">{t("detail.loading")}</div> : null}
 
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h2>明细</h2>
-            <p>每轮 token 消耗</p>
+            <h2>{t("detail.modelRequests")}</h2>
+            <p>{t("detail.modelRequestsSubtitle")}</p>
           </div>
-          <span className="panel-count">{turns.length}</span>
+          <span className="panel-count">{requests.length}</span>
         </div>
 
-        {!isLoading && turns.length === 0 ? (
-          <div className="empty-state">此会话暂无明细记录。</div>
+        {!isLoading && requests.length === 0 ? (
+          <div className="empty-state">{t("detail.noModelRequests")}</div>
         ) : (
-          <div className="table-wrap">
-            <table className="turns-table">
-              <thead>
-                <tr>
-                  <th>时间</th>
-                  <th>总量</th>
-                  <th>输入</th>
-                  <th>缓存</th>
-                  <th>输出</th>
-                  <th>推理</th>
-                </tr>
-              </thead>
-              <tbody>
-                {turns.map((turn, index) => (
-                  <tr key={`${turn.timestamp}-${index}`}>
-                    <td title={turn.timestamp}>{formatTimestamp(turn.timestamp)}</td>
-                    <td>{formatNumber(turn.total_tokens)}</td>
-                    <td>{formatNumber(turn.input_tokens)}</td>
-                    <td>{formatNumber(turn.cached_input_tokens)}</td>
-                    <td>{formatNumber(turn.output_tokens)}</td>
-                    <td>{formatNumber(turn.reasoning_output_tokens)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="request-list">
+            {requests.map((request) => (
+              <details className="request-item" key={request.request_index} open={request.request_index === 1}>
+                <summary>
+                  <div className="request-title">
+                    <strong>{t("detail.requestLabel", { index: request.request_index })}</strong>
+                    <time title={request.turn.timestamp}>{formatTimestamp(request.turn.timestamp)}</time>
+                  </div>
+                  <RequestMetrics turn={request.turn} t={t} />
+                </summary>
+                <MessageList messages={request.messages} t={t} />
+              </details>
+            ))}
           </div>
         )}
       </section>

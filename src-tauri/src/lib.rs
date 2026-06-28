@@ -1,6 +1,7 @@
 pub mod alerts;
 pub mod codex_log;
 pub mod scanner;
+pub mod session_detail;
 pub mod usage_store;
 pub mod watcher;
 
@@ -14,6 +15,8 @@ use std::{
 };
 
 use alerts::AlertItem;
+use codex_log::{read_message_details, MessageDetail};
+use session_detail::{group_model_requests, ModelRequestDetail};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
@@ -78,6 +81,46 @@ mod commands {
             .session_turns(&session_id)
             .await
             .map_err(|err| err.to_string())
+    }
+
+    #[tauri::command]
+    pub async fn session_messages(
+        state: State<'_, AppState>,
+        session_id: String,
+    ) -> Result<Vec<MessageDetail>, String> {
+        let Some(path) = state
+            .store
+            .session_path(&session_id)
+            .await
+            .map_err(|err| err.to_string())?
+        else {
+            return Ok(Vec::new());
+        };
+
+        read_message_details(PathBuf::from(path).as_path())
+    }
+
+    #[tauri::command]
+    pub async fn session_model_requests(
+        state: State<'_, AppState>,
+        session_id: String,
+    ) -> Result<Vec<ModelRequestDetail>, String> {
+        let turns = state
+            .store
+            .session_turns(&session_id)
+            .await
+            .map_err(|err| err.to_string())?;
+        let Some(path) = state
+            .store
+            .session_path(&session_id)
+            .await
+            .map_err(|err| err.to_string())?
+        else {
+            return Ok(group_model_requests(turns, Vec::new()));
+        };
+        let messages = read_message_details(PathBuf::from(path).as_path())?;
+
+        Ok(group_model_requests(turns, messages))
     }
 
     #[tauri::command]
@@ -247,6 +290,7 @@ pub fn run() {
             setup_tray(app)?;
             let state = app.state::<AppState>();
             watcher::start_background_monitor(state.store.clone(), state.monitor_paused.clone());
+            show_dashboard(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -263,6 +307,8 @@ pub fn run() {
             commands::hourly_totals,
             commands::daily_totals,
             commands::session_turns,
+            commands::session_messages,
+            commands::session_model_requests,
             commands::list_alerts
         ])
         .run(tauri::generate_context!())

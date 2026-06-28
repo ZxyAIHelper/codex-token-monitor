@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "outDir": ".test-dist"
+  },
+  "include": ["src/i18n.ts", "src/sessionTitles.ts", "src/types.ts", "tests/**/*.ts"]
+}

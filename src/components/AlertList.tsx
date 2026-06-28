@@ -1,18 +1,20 @@
 import type { AlertItem, AlertKind, AlertLevel } from "../types";
+import type { Translator } from "../i18n";
 
 interface AlertListProps {
   alerts: AlertItem[];
+  t: Translator;
 }
 
-const levelLabels: Record<AlertLevel, string> = {
-  Warning: "Warning",
-  Critical: "Critical",
+const levelKeys: Record<AlertLevel, Parameters<Translator>[0]> = {
+  Warning: "alerts.level.Warning",
+  Critical: "alerts.level.Critical",
 };
 
-const kindLabels: Record<AlertKind, string> = {
-  LargeToolOutput: "Large tool output",
-  HighSessionUsage: "High session usage",
-  HighHourlyUsage: "High hourly usage",
+const kindKeys: Record<AlertKind, Parameters<Translator>[0]> = {
+  LargeToolOutput: "alerts.kind.LargeToolOutput",
+  HighSessionUsage: "alerts.kind.HighSessionUsage",
+  HighHourlyUsage: "alerts.kind.HighHourlyUsage",
 };
 
 function formatTimestamp(timestamp: string) {
@@ -28,26 +30,26 @@ function alertKey(alert: AlertItem) {
   return [alert.level, alert.kind, alert.timestamp, alert.session_id ?? "", alert.message].join("|");
 }
 
-export function AlertList({ alerts }: AlertListProps) {
+export function AlertList({ alerts, t }: AlertListProps) {
   return (
     <section className="panel alerts-panel">
       <div className="panel-header">
         <div>
-          <h2>Alerts</h2>
-          <p>Usage thresholds</p>
+          <h2>{t("alerts.title")}</h2>
+          <p>{t("alerts.subtitle")}</p>
         </div>
         <span className="panel-count">{alerts.length}</span>
       </div>
 
       {alerts.length === 0 ? (
-        <div className="empty-state">No active alerts.</div>
+        <div className="empty-state">{t("alerts.none")}</div>
       ) : (
         <ul className="alert-list">
           {alerts.map((alert) => (
             <li key={alertKey(alert)} className={`alert-item alert-${alert.level.toLowerCase()}`}>
               <div className="alert-item-header">
-                <span className="alert-level">{levelLabels[alert.level]}</span>
-                <span>{kindLabels[alert.kind]}</span>
+                <span className="alert-level">{t(levelKeys[alert.level])}</span>
+                <span>{t(kindKeys[alert.kind])}</span>
               </div>
               <p>{alert.message}</p>
               <div className="alert-meta">
