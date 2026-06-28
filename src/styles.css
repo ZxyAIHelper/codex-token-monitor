@@ -20,6 +20,13 @@ body {
     #0d1117;
 }
 
+body.status-window {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
 button,
 input,
 textarea,
@@ -104,6 +111,170 @@ select {
 .status-error {
   background: #ff6b6b;
   box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.14);
+}
+
+.status-island-shell {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100vw;
+  height: 100vh;
+  padding: 3px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.status-island {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 354px;
+  height: 34px;
+  overflow: hidden;
+  border: 1px solid rgba(116, 139, 163, 0.24);
+  border-radius: 999px;
+  background: rgba(10, 14, 20, 0.92);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  transition:
+    border-radius 160ms ease,
+    background 160ms ease;
+}
+
+.status-island:hover,
+.status-island:focus-within {
+  border-radius: 999px;
+  background: rgba(13, 19, 28, 0.96);
+}
+
+.status-drag-grip {
+  flex: 0 0 18px;
+  border: 0;
+  cursor: grab;
+  background:
+    radial-gradient(circle, rgba(172, 187, 202, 0.58) 1px, transparent 1.5px) 6px 9px / 4px 6px repeat-y;
+}
+
+.status-drag-grip:active {
+  cursor: grabbing;
+}
+
+.status-drag-grip:focus-visible {
+  outline: 1px solid rgba(142, 204, 255, 0.68);
+  outline-offset: -3px;
+}
+
+.status-island-content {
+  display: grid;
+  grid-template-columns: 10px repeat(3, minmax(54px, 1fr));
+  align-items: center;
+  column-gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 13px 4px 2px;
+  border: 0;
+  background: transparent;
+  color: #e9f1f8;
+  cursor: pointer;
+}
+
+.status-island-content:hover,
+.status-island-content:focus-visible {
+  outline: none;
+}
+
+.status-island-content .status-dot {
+  width: 7px;
+  height: 7px;
+  background: #6c7a88;
+  box-shadow: 0 0 0 3px rgba(108, 122, 136, 0.16);
+}
+
+.status-island-content .status-dot.is-live {
+  background: #32d583;
+  box-shadow: 0 0 0 3px rgba(50, 213, 131, 0.18);
+}
+
+.status-metric {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  gap: 4px;
+  text-align: left;
+}
+
+.status-label {
+  color: #91a3b3;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.status-metric strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #f7fbff;
+  font-size: 13px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-island.status-island-left,
+.status-island.status-island-right {
+  flex-direction: column;
+  max-width: 46px;
+  height: calc(100vh - 6px);
+  border-radius: 999px;
+}
+
+.status-island.status-island-left:hover,
+.status-island.status-island-left:focus-within,
+.status-island.status-island-right:hover,
+.status-island.status-island-right:focus-within {
+  height: calc(100vh - 6px);
+  border-radius: 999px;
+}
+
+.status-island.status-island-left .status-drag-grip,
+.status-island.status-island-right .status-drag-grip {
+  flex: 0 0 18px;
+  width: 100%;
+  background:
+    radial-gradient(circle, rgba(172, 187, 202, 0.58) 1px, transparent 1.5px) 12px 7px / 6px 4px repeat-x;
+}
+
+.status-island.status-island-left .status-island-content,
+.status-island.status-island-right .status-island-content {
+  grid-template-columns: 1fr;
+  grid-template-rows: 8px repeat(3, minmax(28px, 1fr));
+  row-gap: 5px;
+  justify-items: center;
+  align-content: center;
+  padding: 5px 4px 8px;
+  text-align: center;
+}
+
+.status-island.status-island-left .status-metric,
+.status-island.status-island-right .status-metric {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  text-align: center;
+}
+
+.status-island.status-island-left .status-label,
+.status-island.status-island-right .status-label {
+  font-size: 9px;
+}
+
+.status-island.status-island-left .status-metric strong,
+.status-island.status-island-right .status-metric strong {
+  max-width: 38px;
+  font-size: 11px;
+  text-align: center;
 }
 
 .banner {

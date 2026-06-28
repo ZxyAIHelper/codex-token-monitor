@@ -20,11 +20,13 @@ use session_detail::{group_model_requests, ModelRequestDetail};
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    Manager, State, WindowEvent, Wry,
+    Manager, PhysicalPosition, State, WindowEvent, Wry,
 };
 use usage_store::{DashboardSummary, SessionSummary, TimeBucket, TurnDetail, UsageStore};
 
 const MAIN_WINDOW_LABEL: &str = "main";
+const STATUS_ISLAND_WINDOW_LABEL: &str = "status-island";
+const STATUS_ISLAND_TOP_OFFSET: i32 = 8;
 const TRAY_ID: &str = "codex-token-monitor";
 const TRAY_OPEN_DASHBOARD_ID: &str = "open-dashboard";
 const TRAY_TODAY_SUMMARY_ID: &str = "today-summary";
@@ -127,6 +129,11 @@ mod commands {
     pub async fn list_alerts(state: State<'_, AppState>) -> Result<Vec<AlertItem>, String> {
         state.store.alerts().await.map_err(|err| err.to_string())
     }
+
+    #[tauri::command]
+    pub fn open_dashboard(app: tauri::AppHandle) {
+        super::toggle_dashboard(&app);
+    }
 }
 
 fn show_dashboard(app: &tauri::AppHandle) {
@@ -135,6 +142,38 @@ fn show_dashboard(app: &tauri::AppHandle) {
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
+}
+
+fn toggle_dashboard(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        if window.is_visible().unwrap_or(false) {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
+    }
+}
+
+fn position_status_island(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window(STATUS_ISLAND_WINDOW_LABEL) else {
+        return;
+    };
+
+    let Ok(Some(monitor)) = window.primary_monitor() else {
+        return;
+    };
+
+    let monitor_position = monitor.position();
+    let monitor_size = monitor.size();
+    let Ok(window_size) = window.outer_size() else {
+        return;
+    };
+
+    let x = monitor_position.x + ((monitor_size.width.saturating_sub(window_size.width)) / 2) as i32;
+    let y = monitor_position.y + STATUS_ISLAND_TOP_OFFSET;
+    let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
 fn new_monitor_paused_flag() -> Arc<AtomicBool> {
@@ -288,6 +327,7 @@ pub fn run() {
         })
         .setup(|app| {
             setup_tray(app)?;
+            position_status_island(app.handle());
             let state = app.state::<AppState>();
             watcher::start_background_monitor(state.store.clone(), state.monitor_paused.clone());
             show_dashboard(app.handle());
@@ -309,7 +349,8 @@ pub fn run() {
             commands::session_turns,
             commands::session_messages,
             commands::session_model_requests,
-            commands::list_alerts
+            commands::list_alerts,
+            commands::open_dashboard
         ])
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
@@ -325,6 +366,8 @@ mod tests {
 
     #[test]
     fn tray_menu_item_ids_are_stable() {
+        assert_eq!(MAIN_WINDOW_LABEL, "main");
+        assert_eq!(STATUS_ISLAND_WINDOW_LABEL, "status-island");
         assert_eq!(TRAY_ID, "codex-token-monitor");
         assert_eq!(TRAY_OPEN_DASHBOARD_ID, "open-dashboard");
         assert_eq!(TRAY_TODAY_SUMMARY_ID, "today-summary");

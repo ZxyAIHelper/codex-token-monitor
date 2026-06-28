@@ -12,10 +12,23 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Codex Token Monitor",
         "width": 1100,
         "height": 720,
         "visible": false
+      },
+      {
+        "label": "status-island",
+        "title": "Codex Token Monitor Status",
+        "width": 360,
+        "height": 42,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": true
       }
     ],
     "security": {

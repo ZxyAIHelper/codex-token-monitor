@@ -1,11 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default permissions for the main application window.",
-  "windows": ["main"],
+  "description": "Default permissions for the application windows.",
+  "windows": ["main", "status-island"],
   "permissions": [
     "core:app:default",
     "core:event:default",
-    "core:window:default"
+    "core:window:default",
+    "core:window:allow-set-position",
+    "core:window:allow-set-size",
+    "core:window:allow-start-dragging"
   ]
 }

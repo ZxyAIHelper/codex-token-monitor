@@ -40,3 +40,7 @@ export function getSessionMessages(sessionId: string): Promise<MessageDetail[]> 
 export function getSessionModelRequests(sessionId: string): Promise<ModelRequestDetail[]> {
   return invoke<ModelRequestDetail[]>("session_model_requests", { sessionId });
 }
+
+export function toggleDashboard(): Promise<void> {
+  return invoke<void>("open_dashboard");
+}

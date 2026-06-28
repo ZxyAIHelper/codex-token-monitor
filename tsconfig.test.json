@@ -9,5 +9,5 @@
     "allowSyntheticDefaultImports": true,
     "outDir": ".test-dist"
   },
-  "include": ["src/i18n.ts", "src/sessionTitles.ts", "src/types.ts", "tests/**/*.ts"]
+  "include": ["src/i18n.ts", "src/sessionTitles.ts", "src/statusIslandDock.ts", "src/types.ts", "tests/**/*.ts"]
 }
