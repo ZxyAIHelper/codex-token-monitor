@@ -21,6 +21,8 @@ export interface AlertItem {
 
 export interface SessionSummary {
   session_id: string;
+  session_name: string;
+  cwd: string;
   path: string;
   total_tokens: number;
   input_tokens: number;

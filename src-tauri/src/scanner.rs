@@ -48,6 +48,17 @@ pub fn scan_file(store: &UsageStore, path: &Path, offset: u64) -> Result<u64, St
                 ))
                 .map_err(|err| err.to_string())?;
             }
+            Ok(CodexEvent::SessionMeta(event)) => {
+                let metadata_session_id = if event.session_id.is_empty() {
+                    &session_id
+                } else {
+                    &event.session_id
+                };
+                tauri::async_runtime::block_on(
+                    store.record_session_cwd(metadata_session_id, &event.cwd),
+                )
+                .map_err(|err| err.to_string())?;
+            }
             Ok(CodexEvent::Ignored) => {}
             // Complete corrupt rows are skipped. An invalid unterminated final row
             // may still be in progress, so leave the offset at the row start.

@@ -24,6 +24,8 @@ pub struct UsageStore {
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct SessionSummary {
     pub session_id: String,
+    pub session_name: String,
+    pub cwd: String,
     pub path: String,
     pub total_tokens: i64,
     pub input_tokens: i64,
@@ -102,6 +104,18 @@ impl UsageStore {
               file_size integer not null default 0,
               modified_at text not null default '',
               parsed_offset integer not null default 0
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            create table if not exists session_metadata (
+              session_id text primary key,
+              session_name text not null default '',
+              cwd text not null default ''
             )
             "#,
         )
@@ -286,6 +300,50 @@ impl UsageStore {
 
         self.rebuild_aggregates_from_token_events().await?;
 
+        Ok(())
+    }
+
+    pub async fn record_session_cwd(&self, session_id: &str, cwd: &str) -> Result<(), sqlx::Error> {
+        if session_id.is_empty() || cwd.is_empty() {
+            return Ok(());
+        }
+
+        sqlx::query(
+            r#"
+            insert into session_metadata (session_id, cwd)
+            values (?1, ?2)
+            on conflict(session_id) do update set
+              cwd = excluded.cwd
+            "#,
+        )
+        .bind(session_id)
+        .bind(cwd)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn record_session_name(
+        &self,
+        session_id: &str,
+        session_name: &str,
+    ) -> Result<(), sqlx::Error> {
+        if session_id.is_empty() || session_name.is_empty() {
+            return Ok(());
+        }
+
+        sqlx::query(
+            r#"
+            insert into session_metadata (session_id, session_name)
+            values (?1, ?2)
+            on conflict(session_id) do update set
+              session_name = excluded.session_name
+            "#,
+        )
+        .bind(session_id)
+        .bind(session_name)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
@@ -711,10 +769,14 @@ impl UsageStore {
     pub async fn sessions(&self) -> Result<Vec<SessionSummary>, sqlx::Error> {
         sqlx::query_as::<_, SessionSummary>(
             r#"
-            select session_id, path, total_tokens, input_tokens, cached_input_tokens,
+            select sessions.session_id,
+                   coalesce(session_metadata.session_name, '') as session_name,
+                   coalesce(session_metadata.cwd, '') as cwd,
+                   path, total_tokens, input_tokens, cached_input_tokens,
                    output_tokens, reasoning_output_tokens, tool_calls,
                    tool_output_bytes, last_seen_at
             from sessions
+            left join session_metadata on session_metadata.session_id = sessions.session_id
             order by total_tokens desc
             "#,
         )

@@ -22,67 +22,73 @@ function formatTimestamp(timestamp: string): string {
   return date.toLocaleString();
 }
 
+function sessionTitle(session: SessionSummary): string {
+  return session.session_name || session.session_id;
+}
+
 export function SessionDetail({ session, turns, isLoading, error, onBack }: SessionDetailProps) {
   return (
     <section className="detail-view">
       <button className="back-button" type="button" onClick={onBack}>
-        Back
+        返回
       </button>
 
       <section className="panel detail-header-panel">
         <div className="detail-title">
-          <h2 title={session.session_id}>{session.session_id}</h2>
-          <p title={session.path}>{session.path}</p>
+          <h2 title={sessionTitle(session)}>{sessionTitle(session)}</h2>
+          <p title={session.cwd || "-"}>工作目录：{session.cwd || "-"}</p>
+          <p title={session.session_id}>Session ID：{session.session_id}</p>
+          <p title={session.path}>日志：{session.path}</p>
         </div>
         <div className="detail-metrics">
           <div>
-            <span>Total</span>
+            <span>总量</span>
             <strong>{formatNumber(session.total_tokens)}</strong>
           </div>
           <div>
-            <span>Input</span>
+            <span>输入</span>
             <strong>{formatNumber(session.input_tokens)}</strong>
           </div>
           <div>
-            <span>Cached</span>
+            <span>缓存输入</span>
             <strong>{formatNumber(session.cached_input_tokens)}</strong>
           </div>
           <div>
-            <span>Output</span>
+            <span>输出</span>
             <strong>{formatNumber(session.output_tokens)}</strong>
           </div>
           <div>
-            <span>Reasoning</span>
+            <span>推理输出</span>
             <strong>{formatNumber(session.reasoning_output_tokens)}</strong>
           </div>
         </div>
       </section>
 
-      {error ? <div className="banner">Unable to load session turns: {error}</div> : null}
-      {isLoading ? <div className="banner banner-muted">Loading session turns...</div> : null}
+      {error ? <div className="banner">无法加载会话明细：{error}</div> : null}
+      {isLoading ? <div className="banner banner-muted">正在加载会话明细...</div> : null}
 
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h2>Turns</h2>
-            <p>Per-turn token usage</p>
+            <h2>明细</h2>
+            <p>每轮 token 消耗</p>
           </div>
           <span className="panel-count">{turns.length}</span>
         </div>
 
         {!isLoading && turns.length === 0 ? (
-          <div className="empty-state">No turns recorded for this session.</div>
+          <div className="empty-state">此会话暂无明细记录。</div>
         ) : (
           <div className="table-wrap">
             <table className="turns-table">
               <thead>
                 <tr>
-                  <th>Time</th>
-                  <th>Total</th>
-                  <th>Input</th>
-                  <th>Cached</th>
-                  <th>Output</th>
-                  <th>Reasoning</th>
+                  <th>时间</th>
+                  <th>总量</th>
+                  <th>输入</th>
+                  <th>缓存</th>
+                  <th>输出</th>
+                  <th>推理</th>
                 </tr>
               </thead>
               <tbody>

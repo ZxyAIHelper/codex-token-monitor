@@ -179,6 +179,37 @@ fn scan_file_records_tool_outputs() {
 }
 
 #[test]
+fn scan_file_records_session_cwd_from_metadata() {
+    let store = tauri::async_runtime::block_on(async {
+        let store = UsageStore::memory().await.unwrap();
+        store.init().await.unwrap();
+        store
+    });
+    let path = temp_rollout_path("scan-session-meta");
+    let mut file = std::fs::File::create(&path).unwrap();
+    writeln!(
+        file,
+        r#"{{"timestamp":"2026-06-28T08:00:00Z","type":"session_meta","payload":{{"id":"019f08f1-c13e-7ea1-b57d-8ba3bc9d4186","cwd":"E:/WorkSpace/ai/codex-token-monitor"}}}}"#
+    )
+    .unwrap();
+    writeln!(
+        file,
+        r#"{{"timestamp":"2026-06-28T08:00:01Z","type":"event_msg","payload":{{"type":"token_count","info":{{"last_token_usage":{{"input_tokens":10,"cached_input_tokens":0,"output_tokens":2,"reasoning_output_tokens":0,"total_tokens":12}}}}}}}}"#
+    )
+    .unwrap();
+
+    scan_file(&store, &path, 0).unwrap();
+
+    tauri::async_runtime::block_on(async {
+        let sessions = store.sessions().await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].cwd, "E:/WorkSpace/ai/codex-token-monitor");
+    });
+
+    cleanup_temp_rollout(&path);
+}
+
+#[test]
 fn scan_file_does_not_double_count_same_tool_line_when_rescanned() {
     let store = tauri::async_runtime::block_on(async {
         let store = UsageStore::memory().await.unwrap();

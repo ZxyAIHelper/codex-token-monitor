@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::{BufRead, BufReader},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -10,6 +11,7 @@ use std::{
 };
 
 use chrono::{DateTime, SecondsFormat, Utc};
+use serde::Deserialize;
 
 use crate::{
     scanner::{default_codex_sessions_dir, extract_session_id, scan_file, should_scan_path},
@@ -76,6 +78,8 @@ fn sessions_dir_ready(sessions_dir: &Path) -> bool {
 }
 
 fn reconcile_once(store: &UsageStore, sessions_dir: &Path) -> Result<(), String> {
+    sync_session_index(store, sessions_dir)?;
+
     let mut candidates = Vec::new();
     collect_recent_jsonl_files(sessions_dir, &mut candidates)?;
     candidates.sort_by(|left, right| {
@@ -100,6 +104,39 @@ fn reconcile_once(store: &UsageStore, sessions_dir: &Path) -> Result<(), String>
     }
     if skipped > 3 {
         eprintln!("codex-token-monitor: scan skipped {skipped} files this cycle");
+    }
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct SessionIndexLine {
+    id: Option<String>,
+    thread_name: Option<String>,
+}
+
+fn sync_session_index(store: &UsageStore, sessions_dir: &Path) -> Result<(), String> {
+    let Some(codex_dir) = sessions_dir.parent() else {
+        return Ok(());
+    };
+    let index_path = codex_dir.join("session_index.jsonl");
+    if !index_path.is_file() {
+        return Ok(());
+    }
+
+    let file = fs::File::open(&index_path)
+        .map_err(|err| format!("open {} failed: {err}", index_path.display()))?;
+    let reader = BufReader::new(file);
+
+    for line in reader.lines() {
+        let line = line.map_err(|err| format!("read {} failed: {err}", index_path.display()))?;
+        let Ok(entry) = serde_json::from_str::<SessionIndexLine>(&line) else {
+            continue;
+        };
+        let session_id = entry.id.unwrap_or_default();
+        let session_name = entry.thread_name.unwrap_or_default();
+        tauri::async_runtime::block_on(store.record_session_name(&session_id, &session_name))
+            .map_err(|err| err.to_string())?;
     }
 
     Ok(())
@@ -238,5 +275,52 @@ mod tests {
         assert!(sessions_dir_ready(&dir));
 
         let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
+    fn sync_session_index_records_thread_names() {
+        let store = tauri::async_runtime::block_on(async {
+            let store = UsageStore::memory().await.unwrap();
+            store.init().await.unwrap();
+            store
+                .record_token_count(
+                    "019f08f1-c13e-7ea1-b57d-8ba3bc9d4186",
+                    "C:/tmp/session.jsonl",
+                    crate::codex_log::TokenCountEvent {
+                        timestamp: "2026-06-27T12:34:56Z".to_string(),
+                        input_tokens: 10,
+                        cached_input_tokens: 0,
+                        output_tokens: 2,
+                        reasoning_output_tokens: 0,
+                        total_tokens: 12,
+                    },
+                )
+                .await
+                .unwrap();
+            store
+        });
+        let codex_dir = std::env::temp_dir().join(format!(
+            "codex-token-monitor-index-{}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let sessions_dir = codex_dir.join("sessions");
+        std::fs::create_dir_all(&sessions_dir).unwrap();
+        std::fs::write(
+            codex_dir.join("session_index.jsonl"),
+            r#"{"id":"019f08f1-c13e-7ea1-b57d-8ba3bc9d4186","thread_name":"Token 监控面板","updated_at":"2026-06-28T08:00:00Z"}"#,
+        )
+        .unwrap();
+
+        sync_session_index(&store, &sessions_dir).unwrap();
+
+        tauri::async_runtime::block_on(async {
+            let sessions = store.sessions().await.unwrap();
+            assert_eq!(sessions[0].session_name, "Token 监控面板");
+        });
+
+        let _ = std::fs::remove_dir_all(&codex_dir);
     }
 }

@@ -4,6 +4,7 @@ use serde::Deserialize;
 pub enum CodexEvent {
     TokenCount(TokenCountEvent),
     ToolOutput(ToolOutputEvent),
+    SessionMeta(SessionMetaEvent),
     Ignored,
 }
 
@@ -21,6 +22,12 @@ pub struct TokenCountEvent {
 pub struct ToolOutputEvent {
     pub timestamp: String,
     pub output_bytes: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionMetaEvent {
+    pub session_id: String,
+    pub cwd: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,6 +77,25 @@ pub fn parse_jsonl_line(line: &str) -> Result<CodexEvent, serde_json::Error> {
             timestamp,
             output_bytes: output.len() as i64,
         }));
+    }
+
+    if raw.kind.as_deref() == Some("session_meta") {
+        let session_id = payload
+            .get("id")
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .to_string();
+        let cwd = payload
+            .get("cwd")
+            .and_then(|value| value.as_str())
+            .unwrap_or("")
+            .to_string();
+        if !session_id.is_empty() || !cwd.is_empty() {
+            return Ok(CodexEvent::SessionMeta(SessionMetaEvent {
+                session_id,
+                cwd,
+            }));
+        }
     }
 
     Ok(CodexEvent::Ignored)

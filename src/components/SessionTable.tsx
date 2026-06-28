@@ -25,6 +25,14 @@ function formatSessionId(sessionId: string): string {
   return `${sessionId.slice(0, 8)}...${sessionId.slice(-4)}`;
 }
 
+function sessionTitle(session: SessionSummary): string {
+  return session.session_name || formatSessionId(session.session_id);
+}
+
+function sessionSubtitle(session: SessionSummary): string {
+  return session.cwd || session.path || "-";
+}
+
 function formatLastSeen(timestamp: string): string {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) {
@@ -45,26 +53,26 @@ export function SessionTable({ sessions, onOpenSession }: SessionTableProps) {
     <section className="panel sessions-panel">
       <div className="panel-header">
         <div>
-          <h2>Sessions</h2>
-          <p>Ordered by total tokens</p>
+          <h2>会话</h2>
+          <p>按总 token 排序</p>
         </div>
         <span className="panel-count">{orderedSessions.length}</span>
       </div>
 
       {orderedSessions.length === 0 ? (
-        <div className="empty-state">No sessions recorded.</div>
+        <div className="empty-state">暂无会话记录。</div>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Session</th>
-                <th>Total</th>
-                <th>Input</th>
-                <th>Output</th>
-                <th>Tools</th>
-                <th>Tool KB</th>
-                <th>Last seen</th>
+                <th>会话</th>
+                <th>总量</th>
+                <th>输入</th>
+                <th>输出</th>
+                <th>工具</th>
+                <th>工具 KB</th>
+                <th>最后出现</th>
               </tr>
             </thead>
             <tbody>
@@ -74,11 +82,12 @@ export function SessionTable({ sessions, onOpenSession }: SessionTableProps) {
                     <button
                       type="button"
                       className="session-action session-cell"
-                      aria-label={`Open session ${session.session_id}`}
+                      aria-label={`打开会话 ${sessionTitle(session)}`}
                       onClick={() => onOpenSession(session)}
                     >
-                      <span title={session.session_id}>{formatSessionId(session.session_id)}</span>
-                      <small title={session.path}>{session.path}</small>
+                      <span title={session.session_name || session.session_id}>{sessionTitle(session)}</span>
+                      <small title={sessionSubtitle(session)}>{sessionSubtitle(session)}</small>
+                      <small title={session.session_id}>{formatSessionId(session.session_id)}</small>
                     </button>
                   </td>
                   <td>{formatNumber(session.total_tokens)}</td>

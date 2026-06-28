@@ -34,6 +34,20 @@ fn parser_tests_parses_function_call_output_size_as_bytes() {
 }
 
 #[test]
+fn parser_tests_parses_session_meta_cwd() {
+    let line = r#"{"timestamp":"2026-06-28T08:00:00Z","type":"session_meta","payload":{"id":"019f08f1-c13e-7ea1-b57d-8ba3bc9d4186","cwd":"E:\\WorkSpace\\ai\\codex-token-monitor"}}"#;
+    let event = parse_jsonl_line(line).unwrap();
+
+    match event {
+        CodexEvent::SessionMeta(e) => {
+            assert_eq!(e.session_id, "019f08f1-c13e-7ea1-b57d-8ba3bc9d4186");
+            assert_eq!(e.cwd, "E:\\WorkSpace\\ai\\codex-token-monitor");
+        }
+        other => panic!("unexpected event: {other:?}"),
+    }
+}
+
+#[test]
 fn parser_tests_ignores_token_count_with_null_info() {
     let line = r#"{"timestamp":"2026-06-27T12:00:00Z","type":"event_msg","payload":{"type":"token_count","info":null}}"#;
     let event = parse_jsonl_line(line).unwrap();
